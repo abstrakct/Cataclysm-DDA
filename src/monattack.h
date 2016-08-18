@@ -1,56 +1,96 @@
-#ifndef _MONATTACK_H_
-#define _MONATTACK_H_
+#ifndef MONATTACK_H
+#define MONATTACK_H
 
-class mattack {
-public:
-    void none               (monster *) {};
-    void antqueen           (monster *z);
-    void shriek             (monster *z);
-    void rattle             (monster *z);
-    void acid               (monster *z);
-    void shockstorm         (monster *z);
-    void smokecloud         (monster *z);
-    void boomer             (monster *z);
-    void resurrect          (monster *z);
-    void science            (monster *z);
-    void growplants         (monster *z);
-    void grow_vine          (monster *z);
-    void vine               (monster *z);
-    void spit_sap           (monster *z);
-    void triffid_heartbeat  (monster *z);
-    void fungus             (monster *z);
-    void fungus_growth      (monster *z);
-    void fungus_sprout      (monster *z);
-    void leap               (monster *z);
-    void dermatik           (monster *z);
-    void dermatik_growth    (monster *z);
-    void plant              (monster *z);
-    void disappear          (monster *z);
-    void formblob           (monster *z);
-    void dogthing           (monster *z);
-    void tentacle           (monster *z);
-    void vortex             (monster *z);
-    void gene_sting         (monster *z);
-    void para_sting         (monster *z);
-    void triffid_growth     (monster *z);
-    void stare              (monster *z);
-    void fear_paralyze      (monster *z);
-    void photograph         (monster *z);
-    void tazer              (monster *z);
-    void smg                (monster *z);
-    void laser     (monster *z);
-    void flamethrower       (monster *z);
-    void copbot             (monster *z);
-    void multi_robot        (monster *z); // Pick from tazer, smg, flame
-    void ratking            (monster *z);
-    void generator          (monster *z);
-    void upgrade            (monster *z);
-    void breathe            (monster *z);
-    void bite               (monster *z);
-    void brandish           (monster *z);
-    void flesh_golem        (monster *z);
-    void parrot             (monster *z);
-    void darkman            (monster *z);
-};
+class monster;
+class Creature;
+
+namespace mattack {
+bool none               (monster *z);
+bool antqueen           (monster *z);
+bool shriek             (monster *z);
+bool shriek_alert       (monster *z);
+bool shriek_stun        (monster *z);
+bool howl               (monster *z);
+bool rattle             (monster *z);
+bool acid               (monster *z);
+bool acid_accurate      (monster *z);
+bool acid_barf          (monster *z);
+bool shockstorm         (monster *z);
+bool pull_metal_weapon  (monster *z);
+bool boomer             (monster *z);
+bool boomer_glow        (monster *z);
+bool resurrect          (monster *z);
+bool smash              (monster *z);
+bool science            (monster *z);
+bool growplants         (monster *z);
+bool grow_vine          (monster *z);
+bool vine               (monster *z);
+bool spit_sap           (monster *z);
+bool triffid_heartbeat  (monster *z);
+bool fungus             (monster *z); // Generic fungal spore-launch
+bool fungus_haze        (monster *z); // Broadly scatter aerobics
+bool fungus_big_blossom (monster *z); // Aerobic & anaerobic, as needed
+bool fungus_inject      (monster *z); // Directly inject the spores
+bool fungus_bristle     (monster *z); // Fungal hedgrow rake & inject
+bool fungus_growth      (monster *z); // Sporeling -> fungal creature
+bool fungus_sprout      (monster *z); // Grow fungal walls
+bool fungus_fortify     (monster *z); // Grow fungal hedgerows
+bool impale             (monster *z);
+bool dermatik           (monster *z);
+bool dermatik_growth    (monster *z);
+bool plant              (monster *z);
+bool disappear          (monster *z);
+bool formblob           (monster *z);
+bool callblobs          (monster *z);
+bool jackson            (monster *z);
+bool dance              (monster *z);
+bool dogthing           (monster *z);
+bool tentacle           (monster *z);
+bool vortex             (monster *z);
+bool gene_sting         (monster *z);
+bool para_sting         (monster *z);
+bool triffid_growth     (monster *z);
+bool stare              (monster *z);
+bool fear_paralyze      (monster *z);
+bool photograph         (monster *z);
+bool tazer              (monster *z);
+bool flamethrower       (monster *z);
+bool searchlight        (monster *z);
+bool copbot             (monster *z);
+bool chickenbot         (monster *z); // Pick from tazer, M4, MGL
+bool multi_robot        (monster *z); // Tazer, flame, M4, MGL, or 120mm!
+bool ratking            (monster *z);
+bool generator          (monster *z);
+bool upgrade            (monster *z);
+bool breathe            (monster *z);
+bool brandish           (monster *z);
+bool flesh_golem        (monster *z);
+bool lunge              (monster *z);
+bool longswipe          (monster *z);
+bool parrot             (monster *z);
+bool darkman            (monster *z);
+bool slimespring        (monster *z);
+bool bio_op_takedown    (monster *z);
+bool ranged_pull        (monster *z);
+bool grab               (monster *z);
+bool grab_drag          (monster *z);
+bool suicide            (monster *z);
+bool thrown_by_judo     (monster *z); //handles zombie getting thrown when u.is_throw_immune()
+bool riotbot            (monster *z);
+bool stretch_attack     (monster *z);
+bool stretch_bite       (monster *z);
+bool kamikaze           (monster *z);
+bool grenadier          (monster *z);
+bool grenadier_elite    (monster *z);
+
+void taze               (monster *z, Creature *target);
+void rifle              (monster *z, Creature *target); // Automated M4
+void frag               (monster *z, Creature *target); // Automated MGL
+void tankgun            (monster *z, Creature *target); // Tankbot primary.
+void flame              (monster *z, Creature *target);
+
+bool dodge_check        (monster *z, Creature *target);
+} //namespace mattack
+
 
 #endif

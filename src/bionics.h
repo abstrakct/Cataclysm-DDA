@@ -1,73 +1,88 @@
-#ifndef _BIONICS_H_
-#define _BIONICS_H_
+#ifndef BIONICS_H
+#define BIONICS_H
+
 #include "json.h"
 #include <string>
-#include <map>
 
-/* Thought: Perhaps a HUD bionic that changes the display of the game?
- * Showing more information or something. */
+class player;
 
-typedef std::string bionic_id;
+struct quality;
+using quality_id = string_id<quality>;
 
-class bionic_data {
-public:
-     bionic_data(std::string new_name, bool new_power_source, bool new_activated,
-              int new_power_cost, int new_charge_time, std::string new_description, bool new_faulty = false);
+struct bionic_data {
+    bionic_data();
 
-     std::string name;
-     bool power_source;
-     bool activated; // If true, then the below function only happens when
-                     // activated; otherwise, it happens every turn
-     int power_cost;
-     int charge_time; // How long, when activated, between drawing power_cost
-                      // If 0, it draws power once
-     std::string description;
-     bool faulty; // Whether or not the bionic is faulty
+    std::string name;
+    std::string description;
+    /** Power cost on activation */
+    int power_activate = 0;
+    /** Power cost on deactivation */
+    int power_deactivate = 0;
+    /** Power cost over time, does nothing without a non-zero charge_time */
+    int power_over_time = 0;
+    /** How often a bionic draws power while active in turns */
+    int charge_time = 0;
+    /** Power bank size **/
+    int capacity = 0;
+    /** True if a bionic is a "faulty" bionic */
+    bool faulty = false;
+    bool power_source = false;
+    /** Is true if a bionic is an active instead of a passive bionic */
+    bool activated = false;
+    /** If true, then the bionic only has a function when activated, else it causes
+     *  it's effect every turn.
+     */
+    bool toggled = false;
+    /**
+     * If true, this bionic is a gun bionic and activating it will fire it.
+     * Prevents all other activation effects.
+     */
+    bool gun_bionic = false;
+    /**
+     * If true, this bionic is a weapon bionic and activating it will
+     * create (or destroy) bionic's fake_item in user's hands.
+     * Prevents all other activation effects.
+     */
+    bool weapon_bionic = false;
+    std::map<body_part, size_t> occupied_bodyparts;
+    /**
+     * Fake item created for crafting with this bionic available.
+     * Also the item used for gun bionics.
+     */
+    std::string fake_item;
 };
 
-struct bionic : public JsonSerializer, public JsonDeserializer
-{
- bionic_id id;
- char invlet;
- bool powered;
- int charge;
- bionic() : id("bio_batteries") {
-  invlet = 'a';
-  powered = false;
-  charge = 0;
- }
- bionic(bionic_id pid, char pinvlet) : id(pid) {
-  id = pid;
-  invlet = pinvlet;
-  powered = false;
-  charge = 0;
- };
+bionic_data const &bionic_info( std::string const &id );
+
+struct bionic : public JsonSerializer, public JsonDeserializer {
+    std::string id;
+    int         charge  = 0;
+    char        invlet  = 'a';
+    bool        powered = false;
+
+    bionic()
+        : id( "bio_batteries" ) { }
+    bionic( std::string pid, char pinvlet )
+        : id( std::move( pid ) ), invlet( pinvlet ) { }
+
+    bionic_data const &info() const {
+        return bionic_info( id );
+    }
+
+    int get_quality( const quality_id &quality ) const;
+
     using JsonSerializer::serialize;
-    void serialize(JsonOut &json) const {
-        json.start_object();
-        json.member("id", id);
-        json.member("invlet", (int)invlet);
-        json.member("powered", powered);
-        json.member("charge", charge);
-        json.end_object();
-    }
+    void serialize( JsonOut &json ) const override;
     using JsonDeserializer::deserialize;
-    void deserialize(JsonIn &jsin) {
-        JsonObject jo = jsin.get_object();
-        id = jo.get_string("id");
-        invlet = jo.get_int("invlet");
-        powered = jo.get_bool("powered");
-        charge = jo.get_int("charge");
-    }
+    void deserialize( JsonIn &jsin ) override;
 };
 
-extern std::map<bionic_id, bionic_data*> bionics;
-extern std::vector<bionic_id> faulty_bionics;
-extern std::vector<bionic_id> power_source_bionics;
-extern std::vector<bionic_id> unpowered_bionics;
-
-void draw_exam_window(WINDOW *win, int border_line, bool examination);
+void check_bionics();
 void reset_bionics();
-void load_bionic(JsonObject &jsobj); // load a bionic from JSON
+void load_bionic( JsonObject &jsobj ); // load a bionic from JSON
+bool is_valid_bionic( std::string const &id );
+char get_free_invlet( player &p );
+std::string list_occupied_bps( const std::string &bio_id, const std::string &intro,
+                               const bool each_bp_on_new_line = true );
 
 #endif

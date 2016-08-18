@@ -1,3 +1,12 @@
+#include "iuse_software_snake.h"
+
+#include "rng.h"
+#include "input.h"
+#include "output.h"
+#include "catacharset.h"  // utf8_width()
+#include "translations.h"
+
+#include <algorithm>
 #include <string>
 #include <cassert>
 #include <cmath>
@@ -8,13 +17,6 @@
 #include <iterator>
 #include <map>
 #include <vector>
-
-#include "input.h"
-#include "output.h"
-#include "catacharset.h"
-#include "options.h"
-#include "debug.h"
-#include "iuse_software_snake.h"
 
 snake_game::snake_game()
 {
@@ -27,13 +29,12 @@ void snake_game::print_score(WINDOW *w_snake, int iScore)
 
 void snake_game::print_header(WINDOW *w_snake, bool show_shortcut)
 {
-    draw_border(w_snake);
+    draw_border( w_snake, BORDER_COLOR, _( "S N A K E" ), c_white );
     if (show_shortcut) {
         std::string shortcut = _("<q>uit");
-        shortcut_print(w_snake, 0, FULL_SCREEN_WIDTH - utf8_width(shortcut.c_str()) - 2,
+        shortcut_print(w_snake, 0, FULL_SCREEN_WIDTH - utf8_width(shortcut) - 2,
                        c_white, c_ltgreen, shortcut);
     }
-    center_print(w_snake, 0, c_white, _("S N A K E"));
 }
 
 void snake_game::snake_over(WINDOW *w_snake, int iScore)
@@ -81,12 +82,6 @@ void snake_game::snake_over(WINDOW *w_snake, int iScore)
     center_print(w_snake, 17, c_yellow, _("TOTAL SCORE: %d"), iScore);
     center_print(w_snake, 21, c_white, _("Press 'q' or ESC to exit."));
     wrefresh(w_snake);
-    do {
-        InputEvent input_event = get_input();
-        if (input_event == Cancel) {
-            return;
-        }
-    } while (true);
 }
 
 int snake_game::start_game()
@@ -98,6 +93,7 @@ int snake_game::start_game()
     int iOffsetY = (TERMY > FULL_SCREEN_HEIGHT) ? (TERMY - FULL_SCREEN_HEIGHT) / 2 : 0;
 
     WINDOW *w_snake = newwin(FULL_SCREEN_HEIGHT, FULL_SCREEN_WIDTH, iOffsetY, iOffsetX);
+    WINDOW_PTR w_snakeptr( w_snake );
     print_header(w_snake);
 
     //Snake start position
@@ -123,8 +119,12 @@ int snake_game::start_game()
     //Draw Score
     print_score(w_snake, iScore);
 
-    long ch;
-    InputEvent input;
+    input_context ctxt("SNAKE");
+    ctxt.register_cardinal();
+    ctxt.register_action("CONFIRM");
+    ctxt.register_action("QUIT");
+    ctxt.register_action("HELP_KEYBINDINGS");
+    ctxt.register_action("ANY_INPUT");
 
     do {
         //Check if we hit a border
@@ -159,7 +159,8 @@ int snake_game::start_game()
             break;
         } else {
             //Add new position to map
-            mSnakeBody[vSnakeBody[vSnakeBody.size() - 1].first][vSnakeBody[vSnakeBody.size() - 1].second] = true;
+            mSnakeBody[vSnakeBody[vSnakeBody.size() - 1].first][vSnakeBody[vSnakeBody.size() - 1].second] =
+                true;
         }
 
         //Have we eaten the forbidden fruit?
@@ -189,7 +190,7 @@ int snake_game::start_game()
                  vSnakeBody[vSnakeBody.size() - 2].second, c_ltgray, '#');
 
         //On full length add a fruit
-        if (iFruitPosY == 0 && iFruitPosY == 0) {
+        if (iFruitPosX == 0 && iFruitPosY == 0) {
             do {
                 iFruitPosY = rng(1, FULL_SCREEN_HEIGHT - 2);
                 iFruitPosX = rng(1, FULL_SCREEN_WIDTH - 2);
@@ -202,44 +203,39 @@ int snake_game::start_game()
 
         //Check input
         timeout(iGameSpeed);
-        ch = getch();
-        input = get_input(ch);
+        const std::string action = ctxt.handle_input();
         timeout(-1);
 
-        switch (input) {
-        case DirectionN: /* up */
+        if (action == "UP") {
             if (iDirY != 1) {
                 iDirY = -1;
                 iDirX = 0;
             }
-            break;
-        case DirectionS: /* down */
+        } else if (action == "DOWN") {
             if (iDirY != -1) {
                 iDirY = 1;
                 iDirX = 0;
             }
-            break;
-        case DirectionW: /* left */
+        } else if (action == "LEFT") {
             if (iDirX != 1) {
                 iDirY = 0;
                 iDirX = -1;
             }
-            break;
-        case DirectionE: /* right */
+        } else if (action == "RIGHT") {
             if (iDirX != -1) {
                 iDirY = 0;
                 iDirX = 1;
             }
-            break;
-        case Cancel:
+        } else if (action == "QUIT") {
             return iScore;
-            break;
-        default:
-            break;
         }
 
     } while (true);
 
     snake_over(w_snake, iScore);
+    while(ctxt.handle_input() != "QUIT") {
+        // try again
+    }
+
     return iScore;
 }

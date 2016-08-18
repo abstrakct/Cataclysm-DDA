@@ -6,7 +6,14 @@
 #include "output.h"
 #include "omdata.h"
 #include "game.h"
+#include "map.h"
+#include "debug.h"
 #include "catacharset.h"
+
+#include "json.h"
+#include "translations.h"
+#include <string>
+#include <cstdlib>
 
 std::string invent_name();
 std::string invent_adj();
@@ -14,35 +21,37 @@ std::string invent_adj();
 faction::faction()
 {
     // debugmsg("Warning: Faction created without UID!");
-    name = "";
+    name = "null";
     values = 0;
     likes_u = 0;
     respects_u = 0;
-    known_by_u = false;
+    known_by_u = true;
     goal = FACGOAL_NULL;
     job1 = FACJOB_NULL;
     job2 = FACJOB_NULL;
     strength = 0;
+    combat_ability = 0;
+    food_supply = 0;
+    wealth = 0;
     sneak = 0;
     crime = 0;
     cult = 0;
     good = 0;
-    omx = 0;
-    omy = 0;
     mapx = 0;
     mapy = 0;
     size = 0;
     power = 0;
-    id = -1;
+    id = "";
+    desc = "";
 }
 
-faction::faction(int uid)
+faction::faction(std::string uid)
 {
     name = "";
     values = 0;
     likes_u = 0;
     respects_u = 0;
-    known_by_u = false;
+    known_by_u = true;
     goal = FACGOAL_NULL;
     job1 = FACJOB_NULL;
     job2 = FACJOB_NULL;
@@ -51,15 +60,90 @@ faction::faction(int uid)
     crime = 0;
     cult = 0;
     good = 0;
-    omx = 0;
-    omy = 0;
     mapx = 0;
     mapy = 0;
     size = 0;
     power = 0;
+    combat_ability = 0;
+    food_supply = 0;
+    wealth = 0;
     id = uid;
+    desc = "";
 }
 
+faction_map faction::_all_faction;
+
+void faction::load_faction(JsonObject &jsobj)
+{
+    faction fac;
+    fac.id = jsobj.get_string("id");
+    fac.name = jsobj.get_string("name");
+    fac.likes_u = jsobj.get_int("likes_u");
+    fac.respects_u = jsobj.get_int("respects_u");
+    fac.known_by_u = jsobj.get_bool("known_by_u");
+    fac.size = jsobj.get_int("size");
+    fac.power = jsobj.get_int("power");
+    fac.combat_ability = jsobj.get_int("combat_ability");
+    fac.food_supply = jsobj.get_int("food_supply");
+    fac.wealth = jsobj.get_int("wealth");
+    fac.good = jsobj.get_int("good");
+    fac.strength = jsobj.get_int("strength");
+    fac.sneak = jsobj.get_int("sneak");
+    fac.crime = jsobj.get_int("crime");
+    fac.cult = jsobj.get_int("cult");
+    fac.desc = jsobj.get_string("description");
+    _all_faction[jsobj.get_string("id")] = fac;
+}
+
+faction *faction::find_faction(std::string ident)
+{
+    faction_map::iterator found = _all_faction.find(ident);
+    if (found != _all_faction.end()) {
+        return &(found->second);
+    } else {
+        debugmsg("Tried to get invalid faction: %s", ident.c_str());
+        static faction null_faction;
+        return &null_faction;
+    }
+}
+
+void faction::load_faction_template(std::string ident)
+{
+    faction_map::iterator found = _all_faction.find(ident);
+    if (found != _all_faction.end()) {
+        id = found->second.id;
+        name = found->second.name;
+        likes_u = found->second.likes_u;
+        respects_u = found->second.respects_u;
+        known_by_u = found->second.known_by_u;
+        size = found->second.size;
+        power = found->second.power;
+        combat_ability = found->second.combat_ability;
+        food_supply = found->second.food_supply;
+        wealth = found->second.wealth;
+        good = found->second.good;
+        strength = found->second.strength;
+        sneak = found->second.sneak;
+        crime = found->second.crime;
+        cult = found->second.cult;
+        desc = found->second.desc;
+
+        return;
+    } else {
+        debugmsg("Tried to get invalid faction: %s", ident.c_str());
+        return;
+    }
+}
+
+std::vector<std::string> faction::all_json_factions()
+{
+    std::vector<std::string> v;
+    for(std::map<std::string, faction>::const_iterator it = _all_faction.begin();
+        it != _all_faction.end(); it++) {
+        v.push_back(it -> first.c_str());
+    }
+    return v;
+}
 
 faction::~faction()
 {
@@ -226,30 +310,19 @@ void game::init_faction_data()
      */
 }
 
-std::string faction::save_info()
-{
-    std::stringstream dump;
-    dump << id << " " << values << " " << goal << " " << job1 << " " << job2 <<
-         " " << likes_u << " " << respects_u << " " << known_by_u << " " <<
-         strength << " " << sneak << " " << crime << " " << cult << " " <<
-         good << " " << omx << " " << omy << " " << mapx << " " << mapy <<
-         " " << size << " " << power << " ";
-    dump << opinion_of.size() << " ";
-    for (int i = 0; i < opinion_of.size(); i++) {
-        dump << opinion_of[i] << " ";
-    }
-    dump << name;
-    return dump.str();
-}
-
 void faction::load_info(std::string data)
 {
     std::stringstream dump;
     int valuetmp, goaltmp, jobtmp1, jobtmp2;
+    int omx, omy;
     dump << data;
     dump >> id >> valuetmp >> goaltmp >> jobtmp1 >> jobtmp2 >> likes_u >>
          respects_u >> known_by_u >> strength >> sneak >> crime >> cult >>
-         good >> omx >> omy >> mapx >> mapy >> size >> power;
+         good >> omx >> omy >> mapx >> mapy >> size >> power >> combat_ability >>
+         food_supply >> wealth;
+    // Make mapx/mapy global coordinate
+    mapx += omx * OMAPX * 2;
+    mapy += omy * OMAPY * 2;
     values = valuetmp;
     goal = faction_goal(goaltmp);
     job1 = faction_job(jobtmp1);
@@ -260,6 +333,11 @@ void faction::load_info(std::string data)
         dump >> tmpop;
         opinion_of.push_back(tmpop);
     }
+    std::string subdesc;
+    while (dump >> subdesc) {
+        desc += " " + subdesc;
+    }
+
     std::string subname;
     while (dump >> subname) {
         name += " " + subname;
@@ -270,8 +348,6 @@ void faction::randomize()
 {
     // Set up values
     // TODO: Not always in overmap 0,0
-    omx = 0;
-    omy = 0;
     mapx = rng(OMAPX / 10, OMAPX - OMAPX / 10);
     mapy = rng(OMAPY / 10, OMAPY - OMAPY / 10);
     // Pick an overall goal.
@@ -360,11 +436,11 @@ void faction::randomize()
     if (one_in(4)) {
         do {
             name = string_format(_("The %1$s of %2$s"), noun.c_str(), invent_name().c_str());
-        } while (utf8_width(name.c_str()) > MAX_FAC_NAME_SIZE);
+        } while (utf8_width(name) > MAX_FAC_NAME_SIZE);
     } else if (one_in(2)) {
         do {
             name = string_format(_("The %1$s %2$s"), invent_adj().c_str(), noun.c_str());
-        } while (utf8_width(name.c_str()) > MAX_FAC_NAME_SIZE);
+        } while (utf8_width(name) > MAX_FAC_NAME_SIZE);
     } else {
         do {
             std::string adj;
@@ -379,15 +455,13 @@ void faction::randomize()
             if (one_in(4)) {
                 name = string_format(_("%1$s of %2$s"), name.c_str(), invent_name().c_str());
             }
-        } while (utf8_width(name.c_str()) > MAX_FAC_NAME_SIZE);
+        } while (utf8_width(name) > MAX_FAC_NAME_SIZE);
     }
 }
 
 void faction::make_army()
 {
     name = _("The army");
-    omx = 0;
-    omy = 0;
     mapx = OMAPX / 2;
     mapy = OMAPY / 2;
     size = OMAPX * 2;
@@ -419,20 +493,20 @@ void faction::make_army()
     if (one_in(8)) {
         values |= mfb(FACVAL_CRUELTY);
     }
-    id = 0;
+    id = "army";
 }
 
-bool faction::has_job(faction_job j)
+bool faction::has_job(faction_job j) const
 {
     return (job1 == j || job2 == j);
 }
 
-bool faction::has_value(faction_value v)
+bool faction::has_value(faction_value v) const
 {
     return values & mfb(v);
 }
 
-bool faction::matches_us(faction_value v)
+bool faction::matches_us(faction_value v) const
 {
     int numvals = 2;
     if (job2 != FACJOB_NULL) {
@@ -478,40 +552,40 @@ bool faction::matches_us(faction_value v)
     return false;
 }
 
-std::string faction::describe()
+std::string faction::describe() const
 {
-    std::string ret = name + _(" have the ultimate goal of ") +
-                      facgoal_data[goal].name + _(". Their primary concern is ") +
-                      facjob_data[job1].name;
+    std::string ret;
+    ret = desc + "\n \n" + string_format( _("%1$s have the ultimate goal of %2$s."), name.c_str(),
+                                          facgoal_data[goal].name.c_str());
     if (job2 == FACJOB_NULL) {
-        ret += _(".");
+        ret += string_format( _(" Their primary concern is %s."), facjob_data[job1].name.c_str());
     } else {
-        ret += _(", but they are also involved in ") + facjob_data[job2].name + _(".");
+        ret += string_format( _(" Their primary concern is %1$s, but they are also involved in %2$s."),
+                              facjob_data[job1].name.c_str(),
+                              facjob_data[job2].name.c_str());
     }
-    if (values != 0) {
-        ret += _(" They are known for ");
-        for (int i = 0; i < NUM_FACVALS; i++) {
-            if (has_value(faction_value(i))) {
-                ret += facval_data[i].name + _(", ");
-            }
-        }
+    if( values == 0 ) {
+        return ret;
     }
-    size_t pos = ret.rfind(_(", "));
-    if (pos != std::string::npos) {
-        ret.replace(pos, std::string(_(", ")).length(), _("."));
-        pos = ret.rfind(_(", "));
-        if (pos != std::string::npos) {
-            ret.replace(pos, std::string(_(", ")).length(), _(", and "));
-        }
+    std::vector<faction_value> vals;
+    vals.reserve( NUM_FACVALS );
+    for( int i = 0; i < NUM_FACVALS; i++ ) {
+        vals.push_back( faction_value( i ) );
+    }
+    const std::string known_vals = enumerate_as_string( vals.begin(), vals.end(), [ this ]( const faction_value val ) {
+        return has_value( val ) ? facval_data[val].name : "";
+    } );
+    if( !known_vals.empty() ) {
+        ret += _( " They are known for " ) + known_vals + ".";
     }
     return ret;
 }
 
-int faction::response_time()
+int faction::response_time() const
 {
-    int base = abs(mapx - g->levx);
-    if (abs(mapy - g->levy) > base) {
-        base = abs(mapy - g->levy);
+    int base = abs(mapx - g->get_levx());
+    if (abs(mapy - g->get_levy()) > base) {
+        base = abs(mapy - g->get_levy());
     }
     if (base > size) { // Out of our sphere of influence
         base *= 2.5;
@@ -965,4 +1039,83 @@ std::string fac_respect_text(int val)
     }
 
     return _("Neutral");
+}
+
+std::string fac_wealth_text(int val, int size)
+{
+    //Wealth per person
+    val = val/size;
+    if (val >= 1000000) {
+        return _("Filthy rich");
+    }
+    if (val >= 750000) {
+        return _("Affluent");
+    }
+    if (val >= 500000) {
+        return _("Prosperous");
+    }
+    if (val >= 250000) {
+        return _("Well-Off");
+    }
+    if (val >= 100000) {
+        return _("Comfortable");
+    }
+    if (val >= 85000) {
+        return _("Wanting");
+    }
+    if (val >= 70000) {
+        return _("Failing");
+    }
+    if (val >= 50000) {
+        return _("Impoverished");
+    }
+    return _("Destitue");
+}
+
+std::string fac_food_supply_text(int val, int size)
+{
+    //Convert to how many days you can support the population
+    val = val/(size*288);
+    if (val >= 30) {
+        return _("Overflowing");
+    }
+    if (val >= 14) {
+        return _("Well-Stocked");
+    }
+    if (val >= 6) {
+        return _("Scrapping By");
+    }
+    if (val >= 3) {
+        return _("Malnourished");
+    }
+    return _("Starving");
+}
+
+std::string fac_combat_ability_text(int val)
+{
+    if (val >= 150) {
+        return _("Legendary");
+    }
+    if (val >= 130) {
+        return _("Expert");
+    }
+    if (val >= 115) {
+        return _("Veteran");
+    }
+    if (val >= 105) {
+        return _("Skilled");
+    }
+    if (val >= 95) {
+        return _("Competent");
+    }
+    if (val >= 85) {
+        return _("Untrained");
+    }
+    if (val >= 75) {
+        return _("Crippled");
+    }
+    if (val >= 50) {
+        return _("Feeble");
+    }
+    return _("Worthless");
 }

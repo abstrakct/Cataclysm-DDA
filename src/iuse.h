@@ -1,288 +1,303 @@
-#ifndef _IUSE_H_
-#define _IUSE_H_
+#ifndef IUSE_H
+#define IUSE_H
+
+#include <map>
+#include <string>
+#include <vector>
+#include <memory>
+#include "enums.h"
 
 class item;
 class player;
+class JsonObject;
+class MonsterGenerator;
+struct iteminfo;
+typedef std::string itype_id;
 
 // iuse methods returning a bool indicating whether to consume a charge of the item being used.
 class iuse
 {
 public:
-    int none                (player*, item*, bool);
-
 // FOOD AND DRUGS (ADMINISTRATION)
-    int raw_meat            (player*, item*, bool);
-    int raw_fat             (player*, item*, bool);
-    int raw_bone            (player*, item*, bool);
-    int raw_fish            (player*, item*, bool);
-    int raw_wildveg         (player*, item*, bool);
-    int sewage              (player*, item*, bool);
-    int honeycomb           (player*, item*, bool);
-    int royal_jelly         (player*, item*, bool);
-    int bandage             (player*, item*, bool);
-    int firstaid            (player*, item*, bool);
-    int completefirstaid    (player*, item*, bool);
-    int disinfectant        (player*, item*, bool);
-    int caff                (player*, item*, bool);
-    int atomic_caff         (player*, item*, bool);
-    int alcohol             (player*, item*, bool);
-    int alcohol_weak        (player*, item*, bool);
-    int alcohol_strong      (player*, item*, bool);
-    int pkill               (player*, item*, bool);
-    int xanax               (player*, item*, bool);
-    int cig                 (player*, item*, bool);
-    int antibiotic          (player*, item*, bool);
-    int eyedrops            (player*, item*, bool);
-    int fungicide           (player*, item*, bool);
-    int antifungal          (player*, item*, bool);
-    int antiparasitic       (player*, item*, bool);
-    int weed                (player*, item*, bool);
-    int coke                (player*, item*, bool);
-    int crack               (player*, item*, bool);
-    int grack               (player*, item*, bool);
-    int meth                (player*, item*, bool);
-    int vitamins            (player*, item*, bool);
-    int vaccine             (player*, item*, bool);
-    int poison              (player*, item*, bool);
-    int hallu               (player*, item*, bool);
-    int fun_hallu           (player*, item*, bool);
-    int thorazine           (player*, item*, bool);
-    int prozac              (player*, item*, bool);
-    int sleep               (player*, item*, bool);
-    int iodine              (player*, item*, bool);
-    int flumed              (player*, item*, bool);
-    int flusleep            (player*, item*, bool);
-    int inhaler             (player*, item*, bool);
-    int blech               (player*, item*, bool);
-    int chew                (player*, item*, bool);
-    int mutagen             (player*, item*, bool);
-    int mut_iv              (player*, item*, bool);
-    int purifier            (player*, item*, bool);
-    int purify_iv           (player*, item*, bool);
-    int marloss             (player*, item*, bool);
-    int dogfood             (player*, item*, bool);
-    int catfood             (player*, item*, bool);
+    int sewage              ( player*, item*, bool, const tripoint& );
+    int honeycomb           ( player*, item*, bool, const tripoint& );
+    int royal_jelly         ( player*, item*, bool, const tripoint& );
+    int completefirstaid    ( player*, item*, bool, const tripoint& );
+    int disinfectant        ( player*, item*, bool, const tripoint& );
+    int caff                ( player*, item*, bool, const tripoint& );
+    int atomic_caff         ( player*, item*, bool, const tripoint& );
+    int alcohol_weak        ( player*, item*, bool, const tripoint& );
+    int alcohol_medium      ( player*, item*, bool, const tripoint& );
+    int alcohol_strong      ( player*, item*, bool, const tripoint& );
+    int xanax               ( player*, item*, bool, const tripoint& );
+    int smoking             ( player*, item*, bool, const tripoint& );
+    int smoking_pipe        ( player*, item*, bool, const tripoint& );
+    int ecig                ( player*, item*, bool, const tripoint& );
+    int antibiotic          ( player*, item*, bool, const tripoint& );
+    int eyedrops            ( player*, item*, bool, const tripoint& );
+    int fungicide           ( player*, item*, bool, const tripoint& );
+    int antifungal          ( player*, item*, bool, const tripoint& );
+    int antiparasitic       ( player*, item*, bool, const tripoint& );
+    int anticonvulsant      ( player*, item*, bool, const tripoint& );
+    int weed_brownie        ( player*, item*, bool, const tripoint& );
+    int coke                ( player*, item*, bool, const tripoint& );
+    int meth                ( player*, item*, bool, const tripoint& );
+    int vaccine             ( player*, item*, bool, const tripoint& );
+    int flu_vaccine         ( player*, item*, bool, const tripoint& );
+    int poison              ( player*, item*, bool, const tripoint& );
+    int fun_hallu           ( player*, item*, bool, const tripoint& );
+    int meditate            ( player*, item*, bool, const tripoint& );
+    int thorazine           ( player*, item*, bool, const tripoint& );
+    int prozac              ( player*, item*, bool, const tripoint& );
+    int sleep               ( player*, item*, bool, const tripoint& );
+    int datura              ( player*, item*, bool, const tripoint& );
+    int flumed              ( player*, item*, bool, const tripoint& );
+    int flusleep            ( player*, item*, bool, const tripoint& );
+    int inhaler             ( player*, item*, bool, const tripoint& );
+    int blech               ( player*, item*, bool, const tripoint& );
+    int plantblech          ( player*, item*, bool, const tripoint& );
+    int chew                ( player*, item*, bool, const tripoint& );
+    int mutagen             ( player*, item*, bool, const tripoint& );
+    int mut_iv              ( player*, item*, bool, const tripoint& );
+    int purifier            ( player*, item*, bool, const tripoint& );
+    int purify_iv           ( player*, item*, bool, const tripoint& );
+    int marloss             ( player*, item*, bool, const tripoint& );
+    int marloss_seed        ( player*, item*, bool, const tripoint& );
+    int marloss_gel         ( player*, item*, bool, const tripoint& );
+    int mycus               ( player*, item*, bool, const tripoint& );
+    int dogfood             ( player*, item*, bool, const tripoint& );
+    int catfood             ( player*, item*, bool, const tripoint& );
 
 // TOOLS
-    int lighter             (player *, item *, bool);
-    int primitive_fire      (player *, item *, bool);
-    int sew                 (player *, item *, bool);
-    int extra_battery       (player *, item *, bool);
-    int rechargeable_battery(player *, item *, bool);
-    int cut_up              (player *, item *, item *, bool);
-    int scissors            (player *, item *, bool);
-    int extinguisher        (player *, item *, bool);
-    int hammer              (player *, item *, bool);
-    int light_off           (player *, item *, bool);
-    int light_on            (player *, item *, bool);
-    int gasoline_lantern_off(player *, item *, bool);
-    int gasoline_lantern_on (player *, item *, bool);
-    int oil_lamp_off        (player *, item *, bool);
-    int oil_lamp_on         (player *, item *, bool);
-    int lightstrip          (player *, item *, bool);
-    int lightstrip_active   (player *, item *, bool);
-    int glowstick           (player *, item *, bool);
-    int glowstick_active    (player *, item *, bool);
-    int solder_weld         (player *, item *, bool);
-    int water_purifier      (player *, item *, bool);
-    int two_way_radio       (player *, item *, bool);
-    int directional_antenna (player *, item *, bool);
-    int radio_off           (player *, item *, bool);
-    int radio_on            (player *, item *, bool);
-    int horn_bicycle        (player *, item *, bool);
-    int noise_emitter_off   (player *, item *, bool);
-    int noise_emitter_on    (player *, item *, bool);
-    int roadmap             (player *, item *, bool);
-    int survivormap         (player *, item *, bool);
-    int militarymap         (player *, item *, bool);
-    int restaurantmap       (player *, item *, bool);
-    int touristmap          (player *, item *, bool);
-    int ma_manual           (player *, item *, bool);
-    int picklock            (player *, item *, bool);
-    int crowbar             (player *, item *, bool);
-    int makemound           (player *, item *, bool);
-    int dig                 (player *, item *, bool);
-    int siphon              (player *, item *, bool);
-    int chainsaw_off        (player *, item *, bool);
-    int chainsaw_on         (player *, item *, bool);
-    int cs_lajatang_off     (player *, item *, bool);
-    int cs_lajatang_on      (player *, item *, bool);
-    int carver_off          (player *, item *, bool);
-    int carver_on           (player *, item *, bool);
-    int trimmer_off         (player *, item *, bool);
-    int trimmer_on          (player *, item *, bool);
-    int circsaw_off         (player *, item *, bool);
-    int circsaw_on          (player *, item *, bool);
-    int combatsaw_off       (player *, item *, bool);
-    int combatsaw_on        (player *, item *, bool);
-    int shishkebab_off      (player *, item *, bool);
-    int shishkebab_on       (player *, item *, bool);
-    int firemachete_off     (player *, item *, bool);
-    int firemachete_on      (player *, item *, bool);
-    int broadfire_off       (player *, item *, bool);
-    int broadfire_on        (player *, item *, bool);
-    int firekatana_off      (player *, item *, bool);
-    int firekatana_on       (player *, item *, bool);
-    int zweifire_off        (player *, item *, bool);
-    int zweifire_on         (player *, item *, bool);
-    int jackhammer          (player *, item *, bool);
-    int jacqueshammer       (player *, item *, bool);
-    int pickaxe             (player *, item *, bool);
-    int set_trap            (player *, item *, bool);
-    int geiger              (player *, item *, bool);
-    int teleport            (player *, item *, bool);
-    int can_goo             (player *, item *, bool);
-    int throwable_extinguisher_act(player *, item *, bool);
-    int pipebomb            (player *, item *, bool);
-    int pipebomb_act        (player *, item *, bool);
-    int grenade             (player *, item *, bool);
-    int grenade_act         (player *, item *, bool);
-    int granade             (player *, item *, bool);
-    int granade_act         (player *, item *, bool);
-    int flashbang           (player *, item *, bool);
-    int flashbang_act       (player *, item *, bool);
-    int c4                  (player *, item *, bool);
-    int c4armed             (player *, item *, bool);
-    int EMPbomb             (player *, item *, bool);
-    int EMPbomb_act         (player *, item *, bool);
-    int scrambler           (player *, item *, bool);
-    int scrambler_act       (player *, item *, bool);
-    int gasbomb             (player *, item *, bool);
-    int gasbomb_act         (player *, item *, bool);
-    int smokebomb           (player *, item *, bool);
-    int smokebomb_act       (player *, item *, bool);
-    int acidbomb            (player *, item *, bool);
-    int arrow_flamable      (player *, item *, bool);
-    int acidbomb_act        (player *, item *, bool);
-    int molotov             (player *, item *, bool);
-    int molotov_lit         (player *, item *, bool);
-    int matchbomb           (player *, item *, bool);
-    int matchbomb_act       (player *, item *, bool);
-    int dynamite            (player *, item *, bool);
-    int dynamite_act        (player *, item *, bool);
-    int firecracker_pack    (player *, item *, bool);
-    int firecracker_pack_act(player *, item *, bool);
-    int firecracker         (player *, item *, bool);
-    int firecracker_act     (player *, item *, bool);
-    int mininuke            (player *, item *, bool);
-    int mininuke_act        (player *, item *, bool);
-    int pheromone           (player *, item *, bool);
-    int portal              (player *, item *, bool);
-    int manhack             (player *, item *, bool);
-    int turret              (player *, item *, bool);
-    int turret_laser        (player *, item *, bool);
-    int UPS_off             (player *, item *, bool);
-    int UPS_on              (player *, item *, bool);
-    int adv_UPS_off         (player *, item *, bool);
-    int adv_UPS_on          (player *, item *, bool);
-    int tazer               (player *, item *, bool);
-    int tazer2              (player *, item *, bool);
-    int shocktonfa_off      (player *, item *, bool);
-    int shocktonfa_on       (player *, item *, bool);
-    int mp3                 (player *, item *, bool);
-    int mp3_on              (player *, item *, bool);
-    int portable_game       (player *, item *, bool);
-    int vortex              (player *, item *, bool);
-    int dog_whistle         (player *, item *, bool);
-    int vacutainer          (player *, item *, bool);
-    int knife               (player *, item *, bool);
-    static int cut_log_into_planks(player *p, item *it);
-    int lumber              (player *, item *, bool);
-    int hacksaw             (player *, item *, bool);
-    int tent                (player *, item *, bool);
-    int shelter             (player *, item *, bool);
-    int torch               (player *, item *, bool);
-    int torch_lit           (player *, item *, bool);
-    int handflare           (player *, item *, bool);
-    int handflare_lit       (player *, item *, bool);
-    int battletorch         (player *, item *, bool);
-    int battletorch_lit     (player *, item *, bool);
-    int candle              (player *, item *, bool);
-    int candle_lit          (player *, item *, bool);
-    int bullet_puller       (player *, item *, bool);
-    int boltcutters         (player *, item *, bool);
-    int mop                 (player *, item *, bool);
-    int spray_can           (player *, item *, bool);
-    int rag                 (player *, item *, bool);
-    int pda                 (player *, item *, bool);
-    int pda_flashlight      (player *, item *, bool);
-    int LAW                 (player *, item *, bool);
-    int heatpack            (player *, item *, bool);
-    int hotplate            (player *, item *, bool);
-    int dejar               (player *, item *, bool);
-    int flask_yeast         (player *, item *, bool);
-    int rad_badge           (player *, item *, bool);
-    int boots               (player *, item *, bool);
-    int towel               (player *, item *, bool);
-    int unfold_bicycle      (player *, item *, bool);
-    int airhorn             (player *, item *, bool);
-    int adrenaline_injector (player *, item *, bool);
-    int jet_injector        (player *, item *, bool);
-    int contacts            (player *, item *, bool);
-    int talking_doll        (player *, item *, bool);
-    int bell                (player *, item *, bool);
-    int seed                (player *, item *, bool);
-    int oxygen_bottle       (player *, item *, bool);
-    int atomic_battery      (player *, item *, bool);
-    int fishing_rod_basic   (player *, item *, bool);
-    int gun_repair          (player *, item *, bool);
-    int toolarmor_off       (player *, item *, bool);
-    int toolarmor_on        (player *, item *, bool);
-    int rm13armor_off       (player *, item *, bool);
-    int rm13armor_on        (player *, item *, bool);
-    int unpack_item         (player *, item *, bool);
-    int pack_item           (player *, item *, bool);
-    int radglove            (player *, item *, bool);
+    int sew_advanced        ( player*, item*, bool, const tripoint& );
+    int extra_battery       ( player*, item*, bool, const tripoint& );
+    int double_reactor      ( player*, item*, bool, const tripoint& );
+    int scissors            ( player*, item*, bool, const tripoint& );
+    int extinguisher        ( player*, item*, bool, const tripoint& );
+    int hammer              ( player*, item*, bool, const tripoint& );
+    int water_purifier      ( player*, item*, bool, const tripoint& );
+    int directional_antenna ( player*, item*, bool, const tripoint& );
+    int radio_off           ( player*, item*, bool, const tripoint& );
+    int radio_on            ( player*, item*, bool, const tripoint& );
+    int noise_emitter_off   ( player*, item*, bool, const tripoint& );
+    int noise_emitter_on    ( player*, item*, bool, const tripoint& );
+    int ma_manual           ( player*, item*, bool, const tripoint& );
+    int crowbar             ( player*, item*, bool, const tripoint& );
+    int makemound           ( player*, item*, bool, const tripoint& );
+    int dig                 ( player*, item*, bool, const tripoint& );
+    int siphon              ( player*, item*, bool, const tripoint& );
+    int chainsaw_off        ( player*, item*, bool, const tripoint& );
+    int chainsaw_on         ( player*, item*, bool, const tripoint& );
+    int elec_chainsaw_off   ( player*, item*, bool, const tripoint& );
+    int elec_chainsaw_on    ( player*, item*, bool, const tripoint& );
+    int cs_lajatang_off     ( player*, item*, bool, const tripoint& );
+    int cs_lajatang_on      ( player*, item*, bool, const tripoint& );
+    int carver_off          ( player*, item*, bool, const tripoint& );
+    int carver_on           ( player*, item*, bool, const tripoint& );
+    int trimmer_off         ( player*, item*, bool, const tripoint& );
+    int trimmer_on          ( player*, item*, bool, const tripoint& );
+    int circsaw_on          ( player*, item*, bool, const tripoint& );
+    int combatsaw_off       ( player*, item*, bool, const tripoint& );
+    int combatsaw_on        ( player*, item*, bool, const tripoint& );
+    int jackhammer          ( player*, item*, bool, const tripoint& );
+    int jacqueshammer       ( player*, item*, bool, const tripoint& );
+    int pickaxe             ( player*, item*, bool, const tripoint& );
+    int geiger              ( player*, item*, bool, const tripoint& );
+    int teleport            ( player*, item*, bool, const tripoint& );
+    int can_goo             ( player*, item*, bool, const tripoint& );
+    int throwable_extinguisher_act( player*, item*, bool, const tripoint& );
+    int capture_monster_act ( player*, item*, bool, const tripoint& );
+    int pipebomb_act        ( player*, item*, bool, const tripoint& );
+    int granade             ( player*, item*, bool, const tripoint& );
+    int granade_act         ( player*, item*, bool, const tripoint& );
+    int c4                  ( player*, item*, bool, const tripoint& );
+    int arrow_flamable      ( player*, item*, bool, const tripoint& );
+    int acidbomb_act        ( player*, item*, bool, const tripoint& );
+    int grenade_inc_act     ( player*, item*, bool, const tripoint& );
+    int molotov_lit         ( player*, item*, bool, const tripoint& );
+    int firecracker_pack    ( player*, item*, bool, const tripoint& );
+    int firecracker_pack_act( player*, item*, bool, const tripoint& );
+    int firecracker         ( player*, item*, bool, const tripoint& );
+    int firecracker_act     ( player*, item*, bool, const tripoint& );
+    int mininuke            ( player*, item*, bool, const tripoint& );
+    int pheromone           ( player*, item*, bool, const tripoint& );
+    int portal              ( player*, item*, bool, const tripoint& );
+    int UPS_off             ( player*, item*, bool, const tripoint& );
+    int UPS_on              ( player*, item*, bool, const tripoint& );
+    int adv_UPS_off         ( player*, item*, bool, const tripoint& );
+    int adv_UPS_on          ( player*, item*, bool, const tripoint& );
+    int tazer               ( player*, item*, bool, const tripoint& );
+    int tazer2              ( player*, item*, bool, const tripoint& );
+    int shocktonfa_off      ( player*, item*, bool, const tripoint& );
+    int shocktonfa_on       ( player*, item*, bool, const tripoint& );
+    int mp3                 ( player*, item*, bool, const tripoint& );
+    int mp3_on              ( player*, item*, bool, const tripoint& );
+    int portable_game       ( player*, item*, bool, const tripoint& );
+    int vibe                ( player*, item*, bool, const tripoint& );
+    int vortex              ( player*, item*, bool, const tripoint& );
+    int dog_whistle         ( player*, item*, bool, const tripoint& );
+    int vacutainer          ( player*, item*, bool, const tripoint& );
+    static void cut_log_into_planks(player *);
+    int lumber              ( player*, item*, bool, const tripoint& );
+    int oxytorch            ( player*, item*, bool, const tripoint& );
+    int hacksaw             ( player*, item*, bool, const tripoint& );
+    int portable_structure  ( player*, item*, bool, const tripoint& );
+    int tent                ( player*, item*, bool, const tripoint& );
+    int large_tent          ( player*, item*, bool, const tripoint& );
+    int shelter             ( player*, item*, bool, const tripoint& );
+    int torch_lit           ( player*, item*, bool, const tripoint& );
+    int battletorch_lit     ( player*, item*, bool, const tripoint& );
+    int boltcutters         ( player*, item*, bool, const tripoint& );
+    int mop                 ( player*, item*, bool, const tripoint& );
+    int spray_can           ( player*, item*, bool, const tripoint& );
+    int heatpack            ( player*, item*, bool, const tripoint& );
+    int heat_food           ( player*, item*, bool, const tripoint& );
+    int hotplate            ( player*, item*, bool, const tripoint& );
+    int towel               ( player*, item*, bool, const tripoint& );
+    int unfold_generic      ( player*, item*, bool, const tripoint& );
+    int adrenaline_injector ( player*, item*, bool, const tripoint& );
+    int jet_injector        ( player*, item*, bool, const tripoint& );
+    int stimpack            ( player*, item*, bool, const tripoint& );
+    int contacts            ( player*, item*, bool, const tripoint& );
+    int talking_doll        ( player*, item*, bool, const tripoint& );
+    int bell                ( player*, item*, bool, const tripoint& );
+    int seed                ( player*, item*, bool, const tripoint& );
+    int oxygen_bottle       ( player*, item*, bool, const tripoint& );
+    int atomic_battery      ( player*, item*, bool, const tripoint& );
+    int ups_battery         ( player*, item*, bool, const tripoint& );
+    int radio_mod           ( player*, item*, bool, const tripoint& );
+    int remove_all_mods     ( player*, item*, bool, const tripoint& );
+    int fishing_rod         ( player*, item*, bool, const tripoint& );
+    int fish_trap           ( player*, item*, bool, const tripoint& );
+    int gun_repair          ( player*, item*, bool, const tripoint& );
+    int misc_repair         ( player*, item*, bool, const tripoint& );
+    int rm13armor_off       ( player*, item*, bool, const tripoint& );
+    int rm13armor_on        ( player*, item*, bool, const tripoint& );
+    int unpack_item         ( player*, item*, bool, const tripoint& );
+    int pack_item           ( player*, item*, bool, const tripoint& );
+    int radglove            ( player*, item*, bool, const tripoint& );
+    int robotcontrol        ( player*, item*, bool, const tripoint& );
+    int einktabletpc        ( player*, item*, bool, const tripoint& );
+    int camera              ( player*, item*, bool, const tripoint& );
+    int ehandcuffs          ( player*, item*, bool, const tripoint& );
+    int cable_attach        ( player*, item*, bool, const tripoint& );
+    int shavekit            ( player*, item*, bool, const tripoint& );
+    int hairkit             ( player*, item*, bool, const tripoint& );
+    int weather_tool        ( player*, item*, bool, const tripoint& );
+    int ladder              ( player*, item*, bool, const tripoint& );
+    int saw_barrel          ( player*, item*, bool, const tripoint& );
+    int washclothes         ( player*, item*, bool, const tripoint& );
+
 // MACGUFFINS
-    int mcg_note            (player *, item *, bool);
+    int mcg_note            ( player*, item*, bool, const tripoint& );
+
+    int radiocar( player*, item*, bool, const tripoint& );
+    int radiocaron( player*, item*, bool, const tripoint& );
+    int radiocontrol( player*, item*, bool, const tripoint& );
+
+    int multicooker( player*, item*, bool, const tripoint& );
+
+    int remoteveh( player*, item*, bool, const tripoint& );
 
 // ARTIFACTS
     /* This function is used when an artifact is activated.
        It examines the item's artifact-specific properties.
        See artifact.h for a list.                        */
-    int artifact            (player *, item *, bool);
+    int artifact            ( player*, item*, bool, const tripoint& );
+
+    // Helper for listening to music, might deserve a better home, but not sure where.
+    static void play_music( player *p, const tripoint &source, int volume, int max_morale );
+
+    // Helper for handling pesky wannabe-artists
+    static int handle_ground_graffiti( player *p, item *it, const std::string prefix );
+
 };
 
 
-typedef int (iuse::*use_function_pointer)(player*,item*,bool);
+typedef int (iuse::*use_function_pointer)( player*, item*, bool, const tripoint& );
 
-enum use_function_t {
-    USE_FUNCTION_CPP,
-    USE_FUNCTION_LUA
+class iuse_actor {
+
+protected:
+    iuse_actor( const std::string& type, long cost = -1 ) : type( type ), cost( cost ) {}
+
+public:
+    /**
+     * The type of the action. It's not translated. Different iuse_actor instances may have the
+     * same type, but different data.
+     */
+    const std::string type;
+
+    /** Units of ammo required per invocation (or use value from base item if negative) */
+    long cost;
+
+    virtual ~iuse_actor() { }
+    virtual void load( JsonObject &jo ) = 0;
+    virtual long use( player*, item*, bool, const tripoint& ) const = 0;
+    virtual bool can_use( const player*, const item*, bool, const tripoint& ) const { return true; }
+    virtual void info( const item &, std::vector<iteminfo> & ) const {};
+    /**
+     * Returns a deep copy of this object. Example implementation:
+     * \code
+     * class my_iuse_actor {
+     *     iuse_actor *clone() const override {
+     *         return new my_iuse_actor( *this );
+     *     }
+     * };
+     * \endcode
+     * The returned value should behave like the original item and must have the same type.
+     */
+    virtual iuse_actor *clone() const = 0;
+    /**
+     * Returns the translated name of the action. It is used for the item action menu.
+     */
+    virtual std::string get_name() const;
+
+    /**
+     * Finalizes the actor. Must be called after all items are loaded.
+     */
+    virtual void finalize( const itype_id &/*my_item_type*/ ) { }
 };
 
 struct use_function {
-    use_function_t function_type;
+protected:
+    std::unique_ptr<iuse_actor> actor;
 
-    union {
-        use_function_pointer cpp_function;
-        int lua_function;
-    };
+public:
+    use_function() = default;
+    use_function( const std::string &type, use_function_pointer f );
+    use_function( iuse_actor *f ) : actor( f ) {}
+    use_function( use_function && ) = default;
+    use_function( const use_function &other );
 
-    use_function() : function_type(USE_FUNCTION_CPP) {};
+    ~use_function() = default;
 
-    use_function(use_function_pointer f)
-        : function_type(USE_FUNCTION_CPP), cpp_function(f)
-    { };
+    long call( player*,item*,bool, const tripoint& ) const;
 
-    use_function(int f)
-        : function_type(USE_FUNCTION_LUA), lua_function(f)
-    { };
-
-    int call(player*,item*,bool);
-
-    void operator=(use_function_pointer f) {
-        cpp_function = f;
+    iuse_actor *get_actor_ptr() const
+    {
+        return actor.get();
     }
 
-    bool operator==(use_function_pointer f) const {
-        return (function_type == USE_FUNCTION_CPP) && (f == cpp_function);
+    explicit operator bool() const {
+        return actor.get() != nullptr;
     }
 
-    bool operator!=(use_function_pointer f) const {
-        return !(this->operator==(f));
+    /** @return See @ref iuse_actor::type */
+    std::string get_type() const;
+    /** @return See @ref iuse_actor::get_name */
+    std::string get_name() const;
+    /** @return Used by @ref item::info to get description of the actor */
+    void dump_info( const item &, std::vector<iteminfo> & ) const;
+
+    bool can_call(const player *p, const item *it, bool t, const tripoint &pos) const
+    {
+        return !actor || actor->can_use( p, it, t, pos );
     }
+
+    use_function &operator=( iuse_actor *f );
+    use_function &operator=( use_function && ) = default;
+    use_function &operator=( const use_function &other );
 };
-
 
 #endif

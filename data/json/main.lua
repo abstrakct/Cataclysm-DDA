@@ -1,5 +1,10 @@
 -- Main mod file that will be executed by the game.
 
+function testcalendar()
+    local cal = game.get_calendar_turn()
+    game.add_msg("The day is: "..cal:days())
+end
+
 function testui()
     local ui = game.create_uimenu()
 
@@ -7,7 +12,7 @@ function testui()
     for _, value in ipairs(selections) do
         ui:addentry(value)
     end
-    ui:query()
+    ui:query(true)
     game.add_msg("You selected: "..selections[ui.selected+1])
 end
 
@@ -25,9 +30,13 @@ function testmon()
     end
 end
 
-function hiccup(item, active)
-    item_store = item
-    game.add_msg("You hiccup because of "..item.id)
+function testvalues()
+    local p = player:pos()
+    game.add_msg("The player is at " .. p.x .. "," .. p.y .. "," .. p.z)
+    p.x = 10
+    p.y = 11
+    p.z = 3333
+    game.add_msg("The point is now " .. p.x .. "," .. p.y .. "," .. p.z .. " - the player should not have moved!")
 end
 
 function makehungry(player, item, active)
@@ -35,49 +44,12 @@ function makehungry(player, item, active)
     player.hunger = player.hunger + 10
 end
 
-function tellstuff(item, active)
-    game.add_msg("Your foo tells you: str "..player.str_cur.."/"..player.str_max)
-    game.add_msg("Are you hot around the legs? "..tostring(player:has_disease("hot_legs")))
-    player:add_disease("hot_feet", 10, 1, 3)
-    player.fatigue = 0
-    game.add_msg("Fatigue: "..player.fatigue)
-end
-
-function custom_prozac(item, active)
-    if not player:has_disease("took_prozac") and player:morale_level() < 0 then
-        player:add_disease("took_prozac", 7200, 0, -1)
-    else
-        player.stim = player.stim + 3
-    end
-end
-
-function custom_sleep(item, active)
-    player.fatigue = player.fatigue + 40
-    if not player:is_npc() then
-        game.add_msg("You feel very sleepy...")
-    end
-end
-
-function custom_iodine(item, active)
-    player:add_disease("iodine", 1200, 0, -1)
-    if not player:is_npc() then
-        game.add_msg("You take an iodine tablet.")
-    end
-end
-
-function custom_flumed(item, active)
-    player:add_disease("took_flumed", 6000, 0, -1)
-    if not player:is_npc() then
-        game.add_msg("You take some "..item.name..".")
-    end
-end
-
 monster_move = {}
 function monster_move.dog(monster)
     monster.friendly = 1000
     local hp_percentage = 100 * monster.hp / monster:max_hp()
     local master_distance = game.distance(monster.posx, monster.posy, player.posx, player.posy)
-    
+
     -- Is there edible meat at our current location?
     if monster.hp < monster:max_hp() then
         local items = game.items_at(monster.posx, monster.posy)
@@ -85,30 +57,30 @@ function monster_move.dog(monster)
             if item:made_of("flesh") then
                 game.add_msg("The dog eats the "..item:tname())
                 monster.hp = monster.hp + 30
-                game.remove_item(monster.posx, monster.posy, item)
+                map:i_rem(monster:pos(), item)
             end
-            
+
             if monster.hp >= monster:max_hp() then
                 break
             end
         end
     end
-    
+
     -- Our offensiveness depends on our current health.
     local max_offensive_distance = math.floor(20 * hp_percentage / 100)
     local retreat_mode = false -- retreat mode means we're not fighting at all
                                -- except to protect our master
-                               
+
     -- We're guarding the player so get the closest enemy to that.
     local closest_enemy = monster:get_closest_enemy_monster(player.posx, player.posy)
-    
+
     local closest_enemy_strong = false
     if closest_enemy then
         -- todo: check for more things than just hp
         local factor = monster.hp * monster:max_hp() / (closest_enemy.hp * closest_enemy:max_hp())
         closest_enemy_strong = factor < 0.1
     end
-                               
+
     -- a few possible conditions for retreat mode:
     -- 1. our master went missing, try to catch up to them
     -- 2. very low HP
@@ -117,22 +89,22 @@ function monster_move.dog(monster)
     if hp_percentage <= 40 or (not monster:can_see(player.posx, player.posy)) or closest_enemy_strong or monster:get_num_visible_enemies() > 8 then
         retreat_mode = true
     end
-    
+
     -- if the closest enemy is fighting the player right now, that overrides retreat mode
     if closest_enemy and game.distance(player.posx, player.posy, closest_enemy.posx, closest_enemy.posy) <= 1 then
         retreat_mode = false
     end
-    
+
     -- retreat mode may make the dog whimper
     if retreat_mode and game.rng(0, 20) == 0 then
         game.add_msg("The dog whimpers.")
     end
-    
-    local distance 
+
+    local distance
     if closest_enemy then
         distance = game.distance(monster.posx, monster.posy, closest_enemy.posx, closest_enemy.posy)
     end
-    
+
     if closest_enemy and distance < max_offensive_distance and not retreat_mode then
         -- maybe we can attack outright?
         if distance == 1 then
@@ -156,9 +128,3 @@ function monster_move.dog(monster)
         monster.moves = monster.moves - 100
     end
 end
-
-game.register_iuse("HICCUP", hiccup)
-game.register_iuse("TELLSTUFF", tellstuff)
-game.register_iuse("CUSTOM_PROZAC", custom_prozac)
-game.register_iuse("CUSTOM_SLEEP", custom_sleep)
-game.register_iuse("CUSTOM_FLUMED", custom_flumed)

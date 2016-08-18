@@ -1,751 +1,825 @@
 #include "player.h"
 #include "game.h"
+#include "debug.h"
 #include "martialarts.h"
 #include "json.h"
 #include "translations.h"
+#include "itype.h"
+#include "damage.h"
 #include <map>
 #include <string>
+#include <algorithm>
+#include "generic_factory.h"
 
-std::map<matype_id, martialart> martialarts;
-std::map<mabuff_id, ma_buff> ma_buffs;
-std::map<matec_id, ma_technique> ma_techniques;
+const skill_id skill_melee( "melee" );
+const skill_id skill_bashing( "bashing" );
+const skill_id skill_cutting( "cutting" );
+const skill_id skill_stabbing( "stabbing" );
+const skill_id skill_unarmed( "unarmed" );
 
-std::map<std::string, technique_id> tech_id_lookup;
-
+namespace {
+generic_factory<ma_technique> ma_techniques( "martial art technique" );
+generic_factory<martialart> martialarts( "martial art style" );
+generic_factory<ma_buff> ma_buffs( "martial art buff" );
+}
 
 void load_technique(JsonObject &jo)
 {
-    ma_technique tec;
+    ma_techniques.load( jo );
+}
 
-    tec.id = jo.get_string("id");
-    //tec.name = _(jo.get_string("name").c_str());
+// To avoid adding empty entries
+template <typename Container>
+void add_if_exists( JsonObject &jo, Container &cont, bool was_loaded,
+    const std::string &json_key, const typename Container::key_type &id )
+{
+    if( jo.has_member( json_key ) ) {
+        mandatory( jo, was_loaded, json_key, cont[id] );
+    }
+}
 
-    JsonArray jsarr = jo.get_array("messages");
-    while (jsarr.has_more()) {
-        tec.messages.push_back(_(jsarr.next_string().c_str()));
+void ma_requirements::load( JsonObject &jo )
+{
+    optional( jo, was_loaded, "unarmed_allowed", unarmed_allowed, false );
+    optional( jo, was_loaded, "melee_allowed", melee_allowed, false );
+
+    optional( jo, was_loaded, "req_buffs", req_buffs, auto_flags_reader<mabuff_id>{} );
+    optional( jo, was_loaded, "req_flags", req_flags, auto_flags_reader<>{} );
+
+    optional( jo, was_loaded, "strictly_unarmed", strictly_unarmed, false );
+
+    // TODO: De-hardcode the skills and damage types here
+    add_if_exists( jo, min_skill, was_loaded, "min_melee", skill_melee );
+    add_if_exists( jo, min_skill, was_loaded, "min_unarmed", skill_unarmed );
+    add_if_exists( jo, min_skill, was_loaded, "min_bashing", skill_bashing );
+    add_if_exists( jo, min_skill, was_loaded, "min_cutting", skill_cutting );
+    add_if_exists( jo, min_skill, was_loaded, "min_stabbing", skill_stabbing );
+
+    add_if_exists( jo, min_damage, was_loaded, "min_bashing_damage", DT_BASH );
+    add_if_exists( jo, min_damage, was_loaded, "min_cutting_damage", DT_CUT );
+    add_if_exists( jo, min_damage, was_loaded, "min_stabbing_damage", DT_STAB );
+}
+
+void ma_technique::load( JsonObject &jo )
+{
+    optional( jo, was_loaded, "name", name, translated_string_reader );
+
+    if( jo.has_member( "messages" ) ) {
+        JsonArray jsarr = jo.get_array("messages");
+        player_message = jsarr.get_string( 0 );
+        if( !player_message.empty() ) {
+            player_message = _(player_message.c_str());
+        }
+        npc_message = jsarr.get_string( 1 );
+        if( !npc_message.empty() ) {
+            npc_message = _(npc_message.c_str());
+        }
     }
 
-    tec.reqs.unarmed_allowed = jo.get_bool("unarmed_allowed", false);
-    tec.reqs.melee_allowed = jo.get_bool("melee_allowed", false);
-    tec.reqs.min_melee = jo.get_int("min_melee", 0);
-    tec.reqs.min_unarmed = jo.get_int("min_unarmed", 0);
+    optional( jo, was_loaded, "crit_tec", crit_tec, false );
+    optional( jo, was_loaded, "defensive", defensive, false );
+    optional( jo, was_loaded, "disarms", disarms, false );
+    optional( jo, was_loaded, "dodge_counter", dodge_counter, false );
+    optional( jo, was_loaded, "block_counter", block_counter, false );
+    optional( jo, was_loaded, "miss_recovery", miss_recovery, false );
+    optional( jo, was_loaded, "grab_break", grab_break, false );
 
-    tec.reqs.min_bashing = jo.get_int("min_bashing", 0);
-    tec.reqs.min_cutting = jo.get_int("min_cutting", 0);
-    tec.reqs.min_stabbing = jo.get_int("min_stabbing", 0);
+    optional( jo, was_loaded, "weighting", weighting, 1 );
 
-    tec.reqs.min_bashing_damage = jo.get_int("min_bashing_damage", 0);
-    tec.reqs.min_cutting_damage = jo.get_int("min_cutting_damage", 0);
+    optional( jo, was_loaded, "down_dur", down_dur, 0 );
+    optional( jo, was_loaded, "stun_dur", stun_dur, 0 );
+    optional( jo, was_loaded, "knockback_dist", knockback_dist, 0 );
+    optional( jo, was_loaded, "knockback_spread", knockback_spread, 0 );
 
-    tec.reqs.req_buffs = jo.get_tags("req_buffs");
-    tec.reqs.req_flags = jo.get_tags("req_flags");    
+    optional( jo, was_loaded, "aoe", aoe, "" );
+    optional( jo, was_loaded, "flags", flags, auto_flags_reader<>{} );
 
-    tec.crit_tec = jo.get_bool("crit_tec", false);
-    tec.defensive = jo.get_bool("defensive", false);
-    tec.disarms = jo.get_bool("disarms", false);
-    tec.dodge_counter = jo.get_bool("dodge_counter", false);
-    tec.block_counter = jo.get_bool("block_counter", false);
-    tec.miss_recovery = jo.get_bool("miss_recovery", false);
-    tec.grab_break = jo.get_bool("grab_break", false);
-    tec.flaming = jo.get_bool("flaming", false);    
-
-    tec.hit = jo.get_int("pain", 0);
-    tec.bash = jo.get_int("bash", 0);
-    tec.cut = jo.get_int("cut", 0);
-    tec.pain = jo.get_int("pain", 0);
-
-    tec.weighting = jo.get_int("weighting", 1);
-
-    tec.bash_mult = jo.get_float("bash_mult", 1.0);
-    tec.cut_mult = jo.get_float("cut_mult", 1.0);
-    tec.speed_mult = jo.get_float("speed_mult", 1.0);
-
-    tec.down_dur = jo.get_int("down_dur", 0);
-    tec.stun_dur = jo.get_int("stun_dur", 0);
-    tec.knockback_dist = jo.get_int("knockback_dist", 0);
-    tec.knockback_spread = jo.get_int("knockback_spread", 0);
-
-    tec.aoe = jo.get_string("aoe", "");
-    tec.flags = jo.get_tags("flags");
-
-    ma_techniques[tec.id] = tec;
+    reqs.load( jo );
+    bonuses.load( jo );
 }
 
-ma_buff load_buff(JsonObject &jo)
+// Not implemented on purpose (martialart objects have no integer id)
+// int_id<T> string_id<mabuff>::id() const;
+
+template<>
+const ma_technique &string_id<ma_technique>::obj() const
 {
-    ma_buff buff;
-
-    buff.id = jo.get_string("id");
-
-    buff.name = _(jo.get_string("name").c_str());
-    buff.description = _(jo.get_string("description").c_str());
-
-    buff.buff_duration = jo.get_int("buff_duration", 2);
-    buff.max_stacks = jo.get_int("max_stacks", 1);
-
-    buff.reqs.unarmed_allowed = jo.get_bool("unarmed_allowed", false);
-    buff.reqs.melee_allowed = jo.get_bool("melee_allowed", false);
-
-    buff.reqs.min_melee = jo.get_int("min_melee", 0);
-    buff.reqs.min_unarmed = jo.get_int("min_unarmed", 0);
-
-    buff.dodges_bonus = jo.get_int("bonus_dodges", 0);
-    buff.blocks_bonus = jo.get_int("bonus_blocks", 0);
-
-    buff.hit = jo.get_int("hit", 0);
-    buff.bash = jo.get_int("bash", 0);
-    buff.cut = jo.get_int("cut", 0);
-    buff.dodge = jo.get_int("dodge", 0);
-    buff.speed = jo.get_int("speed", 0);
-    buff.block = jo.get_int("block", 0);
-
-    buff.arm_bash = jo.get_int("arm_bash", 0);
-    buff.arm_cut = jo.get_int("arm_cut", 0);
-
-    buff.bash_stat_mult = jo.get_float("bash_mult", 1.0);
-    buff.cut_stat_mult = jo.get_float("cut_mult", 1.0);
-
-    buff.hit_str = jo.get_float("hit_str", 0.0);
-    buff.hit_dex = jo.get_float("hit_dex", 0.0);
-    buff.hit_int = jo.get_float("hit_int", 0.0);
-    buff.hit_per = jo.get_float("hit_per", 0.0);
-
-    buff.bash_str = jo.get_float("bash_str", 0.0);
-    buff.bash_dex = jo.get_float("bash_dex", 0.0);
-    buff.bash_int = jo.get_float("bash_int", 0.0);
-    buff.bash_per = jo.get_float("bash_per", 0.0);
-
-    buff.cut_str = jo.get_float("cut_str", 0.0);
-    buff.cut_dex = jo.get_float("cut_dex", 0.0);
-    buff.cut_int = jo.get_float("cut_int", 0.0);
-    buff.cut_per = jo.get_float("cut_per", 0.0);
-
-    buff.dodge_str = jo.get_float("dodge_str", 0.0);
-    buff.dodge_dex = jo.get_float("dodge_dex", 0.0);
-    buff.dodge_int = jo.get_float("dodge_int", 0.0);
-    buff.dodge_per = jo.get_float("dodge_per", 0.0);
-
-    buff.block_str = jo.get_float("block_str", 0.0);
-    buff.block_dex = jo.get_float("block_dex", 0.0);
-    buff.block_int = jo.get_float("block_int", 0.0);
-    buff.block_per = jo.get_float("block_per", 0.0);
-
-    buff.quiet = jo.get_bool("quiet", false);
-    buff.throw_immune = jo.get_bool("throw_immune", false);
-
-    buff.reqs.req_buffs = jo.get_tags("req_buffs");
-
-    ma_buffs[buff.id] = buff;
-
-    return buff;
+    return ma_techniques.obj( *this );
 }
 
-void init_martial_arts() {
-    // set up lookup tables for techniques
-    tech_id_lookup["SWEEP"] = TEC_SWEEP;
-    tech_id_lookup["PRECISE"] = TEC_PRECISE;
-    tech_id_lookup["BRUTAL"] = TEC_BRUTAL;
-    tech_id_lookup["GRAB"] = TEC_GRAB;
-    tech_id_lookup["WIDE"] = TEC_WIDE;
-    tech_id_lookup["RAPID"] = TEC_RAPID;
-    tech_id_lookup["FEINT"] = TEC_FEINT;
-    tech_id_lookup["THROW"] = TEC_THROW;
-    tech_id_lookup["DISARM"] = TEC_DISARM;
-    tech_id_lookup["FLAMING"] = TEC_FLAMING;
+template<>
+bool string_id<ma_technique>::is_valid() const
+{
+    return ma_techniques.is_valid( *this );
+}
 
-    tech_id_lookup["BLOCK"] = TEC_BLOCK;
-    tech_id_lookup["BLOCK_LEGS"] = TEC_BLOCK_LEGS;
-    tech_id_lookup["WBLOCK_1"] = TEC_WBLOCK_1;
-    tech_id_lookup["WBLOCK_2"] = TEC_WBLOCK_2;
-    tech_id_lookup["WBLOCK_3"] = TEC_WBLOCK_3;
-    tech_id_lookup["COUNTER"] = TEC_COUNTER;
-    tech_id_lookup["BREAK"] = TEC_BREAK;
-    tech_id_lookup["DEF_THROW"] = TEC_DEF_THROW;
-    tech_id_lookup["DEF_DISARM"] = TEC_DEF_DISARM;
+void ma_buff::load( JsonObject &jo )
+{
+    mandatory( jo, was_loaded, "name", name, translated_string_reader );
+    mandatory( jo, was_loaded, "description", description, translated_string_reader );
+
+    optional( jo, was_loaded, "buff_duration", buff_duration, 2 );
+    optional( jo, was_loaded, "max_stacks", max_stacks, 1 );
+
+    optional( jo, was_loaded, "bonus_dodges", dodges_bonus, 0 );
+    optional( jo, was_loaded, "bonus_blocks", blocks_bonus, 0 );
+
+    optional( jo, was_loaded, "quiet", quiet, false );
+    optional( jo, was_loaded, "throw_immune", throw_immune, false );
+
+    reqs.load( jo );
+    bonuses.load( jo );
+}
+
+// Not implemented on purpose (martialart objects have no integer id)
+// int_id<T> string_id<mabuff>::id() const;
+
+template<>
+const ma_buff &string_id<ma_buff>::obj() const
+{
+    return ma_buffs.obj( *this );
+}
+
+template<>
+bool string_id<ma_buff>::is_valid() const
+{
+    return ma_buffs.is_valid( *this );
 }
 
 void load_martial_art(JsonObject &jo)
 {
-    martialart ma;
+    martialarts.load( jo );
+}
+
+class ma_buff_reader : public generic_typed_reader<ma_buff_reader>
+{
+    public:
+        mabuff_id get_next( JsonIn &jin ) const {
+            if( jin.test_string() ) {
+                return mabuff_id( jin.get_string() );
+            }
+            JsonObject jsobj = jin.get_object();
+            return ma_buffs.load( jsobj ).id;
+    }
+};
+
+void martialart::load( JsonObject &jo )
+{
     JsonArray jsarr;
 
-    ma.id = jo.get_string("id");
-    ma.name = _(jo.get_string("name").c_str());
-    ma.description = _(jo.get_string("description").c_str());
+    mandatory( jo, was_loaded, "name", name, translated_string_reader );
+    mandatory( jo, was_loaded, "description", description, translated_string_reader );
 
-    jsarr = jo.get_array("static_buffs");
-    while (jsarr.has_more()) {
-        JsonObject jsobj = jsarr.next_object();
-        ma.static_buffs.push_back(load_buff(jsobj));
+    optional( jo, was_loaded, "static_buffs", static_buffs, ma_buff_reader{} );
+    optional( jo, was_loaded, "onmove_buffs", onmove_buffs, ma_buff_reader{} );
+    optional( jo, was_loaded, "onhit_buffs", onhit_buffs, ma_buff_reader{} );
+    optional( jo, was_loaded, "onattack_buffs", onattack_buffs, ma_buff_reader{} );
+    optional( jo, was_loaded, "ondodge_buffs", ondodge_buffs, ma_buff_reader{} );
+    optional( jo, was_loaded, "onblock_buffs", onblock_buffs, ma_buff_reader{} );
+    optional( jo, was_loaded, "ongethit_buffs", ongethit_buffs, ma_buff_reader{} );
+
+    optional( jo, was_loaded, "techniques", techniques, auto_flags_reader<matec_id>{} );
+    optional( jo, was_loaded, "weapons", weapons, auto_flags_reader<itype_id>{} );
+
+    optional( jo, was_loaded, "strictly_unarmed", strictly_unarmed, false );
+
+    optional( jo, was_loaded, "leg_block", leg_block, 99 );
+    optional( jo, was_loaded, "arm_block", arm_block, 99 );
+
+    optional( jo, was_loaded, "arm_block_with_bio_armor_arms", arm_block_with_bio_armor_arms, false );
+    optional( jo, was_loaded, "leg_block_with_bio_armor_legs", leg_block_with_bio_armor_legs, false );
+}
+
+// Not implemented on purpose (martialart objects have no integer id)
+// int_id<T> string_id<martialart>::id() const;
+
+template<>
+const martialart &string_id<martialart>::obj() const
+{
+    return martialarts.obj( *this );
+}
+
+template<>
+bool string_id<martialart>::is_valid() const
+{
+    return martialarts.is_valid( *this );
+}
+
+std::vector<matype_id> all_martialart_types()
+{
+    std::vector<matype_id> result;
+    for( const auto &ma : martialarts.get_all() ) {
+        result.push_back( ma.id );
     }
+    return result;
+}
 
-    jsarr = jo.get_array("onmove_buffs");
-    while (jsarr.has_more()) {
-        JsonObject jsobj = jsarr.next_object();
-        ma.onmove_buffs.push_back(load_buff(jsobj));
+void check( const ma_requirements & req, const std::string &display_text )
+{
+    for( auto & r : req.req_buffs ) {
+        if( !r.is_valid() ) {
+            debugmsg( "ma buff %s of %s does not exist", r.c_str(), display_text.c_str() );
+        }
     }
+}
 
-    jsarr = jo.get_array("onhit_buffs");
-    while (jsarr.has_more()) {
-        JsonObject jsobj = jsarr.next_object();
-        ma.onhit_buffs.push_back(load_buff(jsobj));
+void check_martialarts()
+{
+    for( const auto &ma : martialarts.get_all() ) {
+        for( auto technique = ma.techniques.cbegin();
+             technique != ma.techniques.cend(); ++technique ) {
+            if( !technique->is_valid() ) {
+                debugmsg( "Technique with id %s in style %s doesn't exist.",
+                          technique->c_str(), ma.name.c_str() );
+            }
+        }
+        for( auto weapon = ma.weapons.cbegin();
+             weapon != ma.weapons.cend(); ++weapon ) {
+            if( !item::type_is_defined( *weapon ) ) {
+                debugmsg( "Weapon %s in style %s doesn't exist.",
+                          weapon->c_str(), ma.name.c_str() );
+            }
+        }
     }
-
-    jsarr = jo.get_array("onattack_buffs");
-    while (jsarr.has_more()) {
-        JsonObject jsobj = jsarr.next_object();
-        ma.onattack_buffs.push_back(load_buff(jsobj));
+    for( const auto &t : ma_techniques.get_all() ) {
+        ::check( t.reqs, string_format( "technique %s", t.id.c_str() ) );
     }
-
-    jsarr = jo.get_array("ondodge_buffs");
-    while (jsarr.has_more()) {
-        JsonObject jsobj = jsarr.next_object();
-        ma.ondodge_buffs.push_back(load_buff(jsobj));
+    for( const auto &b : ma_buffs.get_all() ) {
+        ::check( b.reqs, string_format( "buff %s", b.id.c_str() ) );
     }
+}
 
-    jsarr = jo.get_array("onblock_buffs");
-    while (jsarr.has_more()) {
-        JsonObject jsobj = jsarr.next_object();
-        ma.onblock_buffs.push_back(load_buff(jsobj));
+/**
+ * This is a wrapper class to get access to the protected members of effect_type, it creates
+ * the @ref effect_type that is used to store a @ref ma_buff in the creatures effect map.
+ * Note: this class must not contain any new members, it will be converted to a plain
+ * effect_type later and that would slice the new members of.
+ */
+class ma_buff_effect_type : public effect_type {
+public:
+    ma_buff_effect_type( const ma_buff &buff ) {
+        // Unused members of effect_type are commented out:
+        id = buff.get_effect_id();
+        max_intensity = buff.max_stacks;
+        // add_effect add the duration to an existing effect, but it must never be
+        // above buff_duration, this keeps the old ma_buff behavior
+        max_duration = buff.buff_duration;
+        dur_add_perc = 1;
+        // each add_effect call increases the intensity by 1
+        int_add_val = 1;
+        // effect intensity increases by -1 each turn.
+        int_decay_step = -1;
+        int_decay_tick = 1;
+//        int int_dur_factor;
+//        bool main_parts_only;
+//        std::string resist_trait;
+//        std::string resist_effect;
+//        std::vector<std::string> removes_effects;
+//        std::vector<std::string> blocks_effects;
+//        std::vector<std::pair<std::string, int>> miss_msgs;
+//        bool pain_sizing;
+//        bool hurt_sizing;
+//        bool harmful_cough;
+//        bool pkill_addict_reduces;
+        name.push_back( buff.name );
+//        std::string speed_mod_name;
+        desc.push_back( buff.description );
+//        std::vector<std::string> reduced_desc;
+//        bool part_descs;
+//        std::vector<std::pair<std::string, game_message_type>> decay_msgs;
+        rating = e_good;
+//        std::string apply_message;
+//        std::string apply_memorial_log;
+//        std::string remove_message;
+//        std::string remove_memorial_log;
+//        std::unordered_map<std::tuple<std::string, bool, std::string, std::string>, double> mod_data;
     }
+};
 
-    jsarr = jo.get_array("ongethit_buffs");
-    while (jsarr.has_more()) {
-        JsonObject jsobj = jsarr.next_object();
-        ma.onblock_buffs.push_back(load_buff(jsobj));
+void finialize_martial_arts()
+{
+    // This adds an effect type for each ma_buff, so we can later refer to it and don't need a
+    // redundant definition of those effects in json.
+    for( const auto &buff : ma_buffs.get_all() ) {
+        const ma_buff_effect_type new_eff( buff );
+        // Note the slicing here: new_eff is converted to a plain effect_type, but this doesn't
+        // bother us because ma_buff_effect_type does not have any members that can be sliced.
+        effect_type::register_ma_buff_effect( new_eff );
     }
-
-    ma.techniques = jo.get_tags("techniques");
-    ma.weapons = jo.get_tags("weapons");
-
-    ma.leg_block = jo.get_int("leg_block", -1);
-    ma.arm_block = jo.get_int("arm_block", -1);
-
-    martialarts[ma.id] = ma;
 }
 
 void clear_techniques_and_martial_arts()
 {
-    martialarts.clear();
-    ma_buffs.clear();
-    ma_techniques.clear();
+    martialarts.reset();
+    ma_buffs.reset();
+    ma_techniques.reset();
 }
 
-bool ma_requirements::is_valid_player(player& u) {
-  for (std::set<mabuff_id>::iterator it = req_buffs.begin();
-      it != req_buffs.end(); ++it) {
-    mabuff_id buff_id = *it;
-    if (!u.has_mabuff(buff_id)) return false;
-  }
-  
-  //A technique is valid if it applies to unarmed strikes, if it applies generally
-  //to all weapons (such as Ninjutsu sneak attacks or innate weapon techniques like RAPID) 
-  //or if the weapon is flagged as being compatible with the style. Some techniques have 
-  //further restrictions on required weapon properties (is_valid_weapon).
-  bool valid = ((unarmed_allowed && u.unarmed_attack()) ||
-      (melee_allowed && !u.unarmed_attack() && is_valid_weapon(u.weapon)) ||
-      (u.has_weapon() && martialarts[u.style_selected].has_weapon(u.weapon.type->id) &&
-      is_valid_weapon(u.weapon)) ) &&
-    u.skillLevel("melee") >= min_melee &&
-    u.skillLevel("unarmed") >= min_unarmed &&
-    u.skillLevel("bashing") >= min_bashing &&
-    u.skillLevel("cutting") >= min_cutting &&
-    u.skillLevel("stabbing") >= min_stabbing;
-
-  return valid;
-}
-
-bool ma_requirements::is_valid_weapon(item& i) {  
-  for (std::set<std::string>::iterator it = req_flags.begin();
-      it != req_flags.end(); ++it) {
-    std::string flag = *it;
-    if (!i.has_flag(flag)) return false;
-  }
-  bool valid = i.damage_bash() >= min_bashing_damage 
-      && i.damage_cut() >= min_cutting_damage;
-
-  return valid;
-}
-
-ma_technique::ma_technique() {
-
-  crit_tec = false;
-  defensive = false;
-
-  down_dur = 0;
-  stun_dur = 0;
-  knockback_dist = 0;
-  knockback_spread = 0; // adding randomness to knockback, like tec_throw
-
-  // offensive
-  disarms = false; // like tec_disarm
-  dodge_counter = false; // like tec_grab
-  block_counter = false; // like tec_counter
-
-  miss_recovery = false; // allows free recovery from misses, like tec_feint
-  grab_break = false; // allows grab_breaks, like tec_break
-
-  flaming = false; // applies fire effects etc
-  
-  hit = 0; // flat bonus to hit
-  bash = 0; // flat bonus to bash
-  cut = 0; // flat bonus to cut
-  pain = 0; // causes pain
-
-  bash_mult = 1.0f; // bash damage multiplier
-  cut_mult = 1.0f; // cut damage multiplier
-  speed_mult = 1.0f; // speed multiplier (fractional is faster, old rapid aka quick = 0.5)
-}
-
-bool ma_technique::is_valid_player(player& u) {
-  return reqs.is_valid_player(u);
-}
-
-
-
-
-ma_buff::ma_buff() {
-
-  buff_duration = 2; // total length this buff lasts
-  max_stacks = 1; // total number of stacks this buff can have
-
-  dodges_bonus = 0; // extra dodges, like karate
-  blocks_bonus = 0; // extra blocks, like karate
-
-  hit = 0; // flat bonus to hit
-  bash = 0; // flat bonus to bash
-  cut = 0; // flat bonus to cut
-  dodge = 0; // flat dodge bonus
-  speed = 0; // flat speed bonus
-
-  bash_stat_mult = 1.f; // bash damage multiplier, like aikido
-  cut_stat_mult = 1.f; // cut damage multiplier
-
-  bash_str = 0.f; // bonus damage to add per str point
-  bash_dex = 0.f; // "" dex point
-  bash_int = 0.f; // "" int point
-  bash_per = 0.f; // "" per point
-
-  cut_str = 0.f; // bonus cut damage to add per str point
-  cut_dex = 0.f; // "" dex point
-  cut_int = 0.f; // "" int point
-  cut_per = 0.f; // "" per point
-
-  hit_str = 0.f; // bonus to-hit to add per str point
-  hit_dex = 0.f; // "" dex point
-  hit_int = 0.f; // "" int point
-  hit_per = 0.f; // "" per point
-
-  dodge_str = 0.f; // bonus dodge to add per str point
-  dodge_dex = 0.f; // "" dex point
-  dodge_int = 0.f; // "" int point
-  dodge_per = 0.f; // "" per point
-
-  throw_immune = false;
-
-}
-
-void ma_buff::apply_buff(std::vector<disease>& dVec) {
-  for (std::vector<disease>::iterator it = dVec.begin();
-      it != dVec.end(); ++it) {
-    if (it->is_mabuff() && it->buff_id == id) {
-        it->duration = buff_duration;
-        it->intensity++;
-        if (it->intensity > max_stacks) it->intensity = max_stacks;
-        return;
-    }
-  }
-  disease d(id);
-  d.duration = buff_duration;
-  d.intensity = 1;
-  d.permanent = false;
-  dVec.push_back(d);
-}
-
-bool ma_buff::is_valid_player(player& u) {
-  return reqs.is_valid_player(u);
-}
-
-void ma_buff::apply_player(player& u) {
-  u.dodges_left += dodges_bonus;
-  u.blocks_left += blocks_bonus;
-}
-
-int ma_buff::hit_bonus(player& u) {
-  return hit + u.str_cur*hit_str +
-         u.dex_cur*hit_dex +
-         u.int_cur*hit_int +
-         u.per_cur*hit_per;
-}
-int ma_buff::dodge_bonus(player& u) {
-  return dodge + u.str_cur*dodge_str +
-         u.dex_cur*dodge_dex +
-         u.int_cur*dodge_int +
-         u.per_cur*dodge_per;
-}
-int ma_buff::block_bonus(player& u) {
-  return block + u.str_cur*block_str +
-         u.dex_cur*block_dex +
-         u.int_cur*block_int +
-         u.per_cur*block_per;
-}
-int ma_buff::speed_bonus(player& u)
+#include "messages.h"
+bool ma_requirements::is_valid_player( const player &u ) const
 {
-    (void)u; //unused
-    return speed;
-}
-int ma_buff::arm_bash_bonus(player& u) {
-    (void)u; //unused
-    return arm_bash;
-}
-int ma_buff::arm_cut_bonus(player& u) {
-    (void)u; //unused
-    return arm_cut;
-}
-float ma_buff::bash_mult() {
-  return bash_stat_mult;
-}
-int ma_buff::bash_bonus(player& u) {
-  return bash + u.str_cur*bash_str +
-         u.dex_cur*bash_dex +
-         u.int_cur*bash_int +
-         u.per_cur*bash_per;
-}
-float ma_buff::cut_mult() {
-  return cut_stat_mult;
-}
-int ma_buff::cut_bonus(player& u) {
-  return cut + u.str_cur*cut_str +
-         u.dex_cur*cut_dex +
-         u.int_cur*cut_int +
-         u.per_cur*cut_per;
-}
-bool ma_buff::is_throw_immune() {
-  return throw_immune;
-}
-bool ma_buff::is_quiet() {
-  return quiet;
+    for( const auto &buff_id : req_buffs ) {
+        if (!u.has_mabuff(buff_id)) {
+            return false;
+        }
+    }
+
+    //A technique is valid if it applies to unarmed strikes, if it applies generally
+    //to all weapons (such as Ninjutsu sneak attacks or innate weapon techniques like RAPID)
+    //or if the weapon is flagged as being compatible with the style. Some techniques have
+    //further restrictions on required weapon properties (is_valid_weapon).
+    bool cqb = u.has_active_bionic("bio_cqb");
+    // There are 4 different cases of "armedness":
+    // Truly unarmed, unarmed weapon, style-allowed weapon, generic weapon
+    bool valid_weapon =
+        ( unarmed_allowed && u.unarmed_attack() &&
+            ( !strictly_unarmed || !u.is_armed() ) ) ||
+        ( is_valid_weapon( u.weapon ) &&
+            ( melee_allowed || u.style_selected.obj().has_weapon( u.weapon.typeId() ) ) );
+    if( !valid_weapon ) {
+        return false;
+    }
+
+    for( const auto &pr : min_skill ) {
+        if( ( cqb ? 5 : (int)u.get_skill_level( pr.first ) ) < pr.second ) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
-bool ma_buff::can_melee() {
-  return melee_allowed;
+bool ma_requirements::is_valid_weapon( const item &i ) const
+{
+    for( auto flag : req_flags ) {
+        if (!i.has_flag(flag)) {
+            return false;
+        }
+    }
+    for( const auto &pr : min_damage ) {
+        if( i.damage_by_type( pr.first ) < pr.second ) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+ma_technique::ma_technique()
+{
+    crit_tec = false;
+    defensive = false;
+    dummy = false;
+
+    down_dur = 0;
+    stun_dur = 0;
+    knockback_dist = 0;
+    knockback_spread = 0; // adding randomness to knockback, like tec_throw
+
+    // offensive
+    disarms = false; // like tec_disarm
+    dodge_counter = false; // like tec_grab
+    block_counter = false; // like tec_counter
+
+    miss_recovery = false; // allows free recovery from misses, like tec_feint
+    grab_break = false; // allows grab_breaks, like tec_break
+}
+
+bool ma_technique::is_valid_player( const player &u ) const
+{
+    return reqs.is_valid_player(u);
 }
 
 
+ma_buff::ma_buff()
+{
 
-martialart::martialart() {
-  leg_block = -1;
-  arm_block = -1;
+    buff_duration = 2; // total length this buff lasts
+    max_stacks = 1; // total number of stacks this buff can have
+
+    dodges_bonus = 0; // extra dodges, like karate
+    blocks_bonus = 0; // extra blocks, like karate
+
+    throw_immune = false;
+
+}
+
+efftype_id ma_buff::get_effect_id() const
+{
+    return efftype_id( std::string( "mabuff:" ) + id.str() );
+}
+
+const ma_buff *ma_buff::from_effect( const effect &eff )
+{
+    const std::string &id = eff.get_effect_type()->id.str();
+    // Same as in get_effect_id!
+    if( id.compare( 0, 7, "mabuff:" ) != 0 ) {
+        return nullptr;
+    }
+    return &mabuff_id( id.substr( 7 ) ).obj();
+}
+
+void ma_buff::apply_buff( player &u ) const
+{
+    u.add_effect( get_effect_id(), buff_duration );
+}
+
+bool ma_buff::is_valid_player( const player &u ) const
+{
+    return reqs.is_valid_player(u);
+}
+
+void ma_buff::apply_player(player &u) const
+{
+    u.dodges_left += dodges_bonus;
+    u.blocks_left += blocks_bonus;
+}
+
+int ma_buff::hit_bonus( const player &u ) const
+{
+    return bonuses.get_flat( u, AFFECTED_HIT );
+}
+int ma_buff::dodge_bonus( const player &u ) const
+{
+    return bonuses.get_flat( u, AFFECTED_DODGE );
+}
+int ma_buff::block_bonus( const player &u ) const
+{
+    return bonuses.get_flat( u, AFFECTED_BLOCK );
+}
+int ma_buff::speed_bonus( const player &u ) const
+{
+    return bonuses.get_flat( u, AFFECTED_SPEED );
+}
+int ma_buff::armor_bonus( const player &u, damage_type dt ) const
+{
+    return bonuses.get_flat( u, AFFECTED_ARMOR, dt );
+}
+float ma_buff::damage_bonus( const player &u, damage_type dt ) const
+{
+    return bonuses.get_flat( u, AFFECTED_DAMAGE, dt );
+}
+float ma_buff::damage_mult( const player &u, damage_type dt ) const
+{
+    return bonuses.get_mult( u, AFFECTED_DAMAGE, dt );
+}
+bool ma_buff::is_throw_immune() const
+{
+    return throw_immune;
+}
+bool ma_buff::is_quiet() const
+{
+    return quiet;
+}
+
+bool ma_buff::can_melee() const
+{
+    return melee_allowed;
+}
+
+martialart::martialart()
+{
+    leg_block = -1;
+    arm_block = -1;
 }
 
 // simultaneously check and add all buffs. this is so that buffs that have
 // buff dependencies added by the same event trigger correctly
-void simultaneous_add(player& u, std::vector<ma_buff>& buffs, std::vector<disease>& dVec) {
-  std::vector<ma_buff> buffer; // hey get it because it's for buffs????
-  for (std::vector<ma_buff>::iterator it = buffs.begin();
-      it != buffs.end(); ++it) {
-    if (it->is_valid_player(u)) {
-      buffer.push_back(*it);
-    }
-  }
-  for (std::vector<ma_buff>::iterator it = buffer.begin();
-      it != buffer.end(); ++it) {
-    it->apply_buff(dVec);
-  }
-}
-
-void martialart::apply_static_buffs(player& u, std::vector<disease>& dVec) {
-  simultaneous_add(u, static_buffs, dVec);
-}
-
-void martialart::apply_onmove_buffs(player& u, std::vector<disease>& dVec) {
-  simultaneous_add(u, onmove_buffs, dVec);
-}
-
-void martialart::apply_onhit_buffs(player& u, std::vector<disease>& dVec) {
-  simultaneous_add(u, onhit_buffs, dVec);
-}
-
-void martialart::apply_onattack_buffs(player& u, std::vector<disease>& dVec) {
-  simultaneous_add(u, onattack_buffs, dVec);
-}
-
-void martialart::apply_ondodge_buffs(player& u, std::vector<disease>& dVec) {
-  simultaneous_add(u, ondodge_buffs, dVec);
-}
-
-void martialart::apply_onblock_buffs(player& u, std::vector<disease>& dVec) {
-  simultaneous_add(u, onblock_buffs, dVec);
-}
-
-void martialart::apply_ongethit_buffs(player& u, std::vector<disease>& dVec) {
-  simultaneous_add(u, ongethit_buffs, dVec);
-}
-
-
-bool martialart::has_technique(player& u, matec_id tec_id) {
-  for (std::set<matec_id>::iterator it = techniques.begin();
-      it != techniques.end(); ++it) {
-    ma_technique tec = ma_techniques[*it];
-    if (tec.is_valid_player(u) && tec.id == tec_id) {
-      return true;
-    }
-  }
-  return false;
-}
-
-bool martialart::has_weapon(itype_id item)
+void simultaneous_add(player &u, const std::vector<mabuff_id> &buffs)
 {
-    return weapons.count(item);
+    std::vector<const ma_buff*> buffer; // hey get it because it's for buffs????
+    for( auto &buffid : buffs ) {
+        const ma_buff &buff = buffid.obj();
+        if( buff.is_valid_player( u ) ) {
+            buffer.push_back( &buff );
+        }
+    }
+    for( auto &elem : buffer ) {
+        elem->apply_buff( u );
+    }
 }
 
-std::string martialart::melee_verb(matec_id tec_id, player& u) {
-  for (std::set<matec_id>::iterator it = techniques.begin();
-      it != techniques.end(); ++it) {
-    ma_technique tec = ma_techniques[*it];
-    if (tec.id == tec_id) {
-      if (u.is_npc())
-        return tec.messages[1];
-      else
-        return tec.messages[0];
+void martialart::apply_static_buffs(player &u) const
+{
+    simultaneous_add(u, static_buffs);
+}
+
+void martialart::apply_onmove_buffs(player &u) const
+{
+    simultaneous_add(u, onmove_buffs);
+}
+
+void martialart::apply_onhit_buffs(player &u) const
+{
+    simultaneous_add(u, onhit_buffs);
+}
+
+void martialart::apply_onattack_buffs(player &u) const
+{
+    simultaneous_add(u, onattack_buffs);
+}
+
+void martialart::apply_ondodge_buffs(player &u) const
+{
+    simultaneous_add(u, ondodge_buffs);
+}
+
+void martialart::apply_onblock_buffs(player &u) const
+{
+    simultaneous_add(u, onblock_buffs);
+}
+
+void martialart::apply_ongethit_buffs(player &u) const
+{
+    simultaneous_add(u, ongethit_buffs);
+}
+
+
+bool martialart::has_technique( const player &u, const matec_id &tec_id ) const
+{
+    for( const auto &elem : techniques ) {
+        const ma_technique &tec = elem.obj();
+        if (tec.is_valid_player(u) && tec.id == tec_id) {
+            return true;
+        }
     }
-  }
-  return std::string("%s is attacked by bugs");
+    return false;
+}
+
+bool martialart::has_weapon( const itype_id &itt ) const
+{
+    return weapons.count( itt ) > 0;
+}
+
+bool martialart::weapon_valid( const item &it ) const
+{
+    if( it.is_null() ) {
+        return true;
+    }
+
+    if( has_weapon( it.typeId() ) ) {
+        return true;
+    }
+
+    return !strictly_unarmed && it.has_flag( "UNARMED_WEAPON" );
 }
 
 // Player stuff
 
 // technique
-std::vector<matec_id> player::get_all_techniques() {
-  std::vector<matec_id> tecs;
-  tecs.insert(tecs.end(), weapon.type->techniques.begin(), weapon.type->techniques.end());
-  tecs.insert(tecs.end(), martialarts[style_selected].techniques.begin(),
-      martialarts[style_selected].techniques.end());
+std::vector<matec_id> player::get_all_techniques() const
+{
+    std::vector<matec_id> tecs;
+    // Grab individual item techniques
+    const auto &weapon_techs = weapon.get_techniques();
+    tecs.insert( tecs.end(), weapon_techs.begin(), weapon_techs.end() );
+    // and martial art techniques
+    const auto &style = style_selected.obj();
+    tecs.insert( tecs.end(), style.techniques.begin(), style.techniques.end() );
 
-  return tecs;
+    return tecs;
 }
 
 // defensive technique-related
-bool player::has_miss_recovery_tec() {
-  std::vector<matec_id> techniques = get_all_techniques();
-  for (std::vector<matec_id>::iterator it = techniques.begin();
-      it != techniques.end(); ++it) {
-    if (ma_techniques[*it].miss_recovery == true)
-      return true;
-  }
-  return false;
-}
-
-bool player::has_grab_break_tec() {
-  std::vector<matec_id> techniques = get_all_techniques();
-  for (std::vector<matec_id>::iterator it = techniques.begin();
-      it != techniques.end(); ++it) {
-    if (ma_techniques[*it].grab_break == true)
-      return true;
-  }
-  return false;
-}
-
-bool player::can_leg_block() {
-  if (martialarts[style_selected].leg_block < 0)
-    return false;
-  if (skillLevel("unarmed") >= martialarts[style_selected].leg_block &&
-      (hp_cur[hp_leg_l] > 0 || hp_cur[hp_leg_r] > 0))
-    return true;
-  else
+bool player::has_miss_recovery_tec() const
+{
+    for( auto &technique : get_all_techniques() ) {
+        if( technique.obj().miss_recovery ) {
+            return true;
+        }
+    }
     return false;
 }
 
-bool player::can_arm_block() {
-  if (martialarts[style_selected].arm_block < 0)
-    return false;
-  if (skillLevel("unarmed") >= martialarts[style_selected].arm_block &&
-      (hp_cur[hp_arm_l] > 0 || hp_cur[hp_arm_r] > 0))
-    return true;
-  else
+bool player::has_grab_break_tec() const
+{
+    for( auto &technique : get_all_techniques() ) {
+        if( technique.obj().grab_break ) {
+            return true;
+        }
+    }
     return false;
 }
 
-bool player::can_limb_block() {
-  return can_arm_block() || can_leg_block();
+bool player::can_leg_block() const
+{
+    const martialart &ma = style_selected.obj();
+    ///\EFFECT_UNARMED increases ability to perform leg block
+    int unarmed_skill = has_active_bionic("bio_cqb") ? 5 : (int)get_skill_level(skill_id("unarmed"));
+
+    // Success conditions.
+    if(hp_cur[hp_leg_l] > 0 || hp_cur[hp_leg_r] > 0) {
+        if( unarmed_skill >= ma.leg_block ) {
+            return true;
+        } else if( ma.leg_block_with_bio_armor_legs && has_bionic("bio_armor_legs") ) {
+            return true;
+        }
+    }
+    // if not above, can't block.
+    return false;
+}
+
+bool player::can_arm_block() const
+{
+    const martialart &ma = style_selected.obj();
+    ///\EFFECT_UNARMED increases ability to perform arm block
+    int unarmed_skill = has_active_bionic("bio_cqb") ? 5 : (int)get_skill_level(skill_id("unarmed"));
+
+    // Success conditions.
+    if (hp_cur[hp_arm_l] > 0 || hp_cur[hp_arm_r] > 0) {
+        if( unarmed_skill >= ma.arm_block ) {
+            return true;
+        } else if( ma.arm_block_with_bio_armor_arms && has_bionic("bio_armor_arms") ) {
+            return true;
+        }
+    }
+    // if not above, can't block.
+    return false;
+}
+
+bool player::can_limb_block() const
+{
+    return can_arm_block() || can_leg_block();
 }
 
 // event handlers
-void player::ma_static_effects() {
-  martialarts[style_selected].apply_static_buffs(*this, illness);
+void player::ma_static_effects()
+{
+    style_selected.obj().apply_static_buffs(*this);
 }
-void player::ma_onmove_effects() {
-  martialarts[style_selected].apply_onmove_buffs(*this, illness);
+void player::ma_onmove_effects()
+{
+    style_selected.obj().apply_onmove_buffs(*this);
 }
-void player::ma_onhit_effects() {
-  martialarts[style_selected].apply_onhit_buffs(*this, illness);
+void player::ma_onhit_effects()
+{
+    style_selected.obj().apply_onhit_buffs(*this);
 }
-void player::ma_onattack_effects() {
-  martialarts[style_selected].apply_onattack_buffs(*this, illness);
+void player::ma_onattack_effects()
+{
+    style_selected.obj().apply_onattack_buffs(*this);
 }
-void player::ma_ondodge_effects() {
-  martialarts[style_selected].apply_ondodge_buffs(*this, illness);
+void player::ma_ondodge_effects()
+{
+    style_selected.obj().apply_ondodge_buffs(*this);
 }
-void player::ma_onblock_effects() {
-  martialarts[style_selected].apply_onblock_buffs(*this, illness);
+void player::ma_onblock_effects()
+{
+    style_selected.obj().apply_onblock_buffs(*this);
 }
-void player::ma_ongethit_effects() {
-  martialarts[style_selected].apply_ongethit_buffs(*this, illness);
+void player::ma_ongethit_effects()
+{
+    style_selected.obj().apply_ongethit_buffs(*this);
+}
+
+template<typename C, typename F>
+static void accumulate_ma_buff_effects( const C &container, F f )
+{
+    for( auto &elem : container ) {
+        for( auto &eff : elem.second ) {
+            if( auto buff = ma_buff::from_effect( eff.second ) ) {
+                f( *buff, eff.second );
+            }
+        }
+    }
+}
+
+template<typename C, typename F>
+static bool search_ma_buff_effect( const C &container, F f )
+{
+    for( auto &elem : container ) {
+        for( auto &eff : elem.second ) {
+            if( auto buff = ma_buff::from_effect( eff.second ) ) {
+                if( f( *buff, eff.second ) ) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
 }
 
 // bonuses
-int player::mabuff_tohit_bonus() {
-  int ret = 0;
-  for (std::vector<disease>::iterator it = illness.begin();
-      it != illness.end(); ++it) {
-    if (it->is_mabuff() &&
-        ma_buffs.find(it->buff_id) != ma_buffs.end()) {
-      ret += ma_buffs[it->buff_id].hit_bonus(*this);
-    }
-  }
-  return ret;
+int player::mabuff_tohit_bonus() const
+{
+    int ret = 0;
+    accumulate_ma_buff_effects( effects, [&ret, this]( const ma_buff &b, const effect & ) {
+        ret += b.hit_bonus( *this );
+    } );
+    return ret;
 }
-int player::mabuff_dodge_bonus() {
-  int ret = 0;
-  for (std::vector<disease>::iterator it = illness.begin();
-      it != illness.end(); ++it) {
-    if (it->is_mabuff() &&
-        ma_buffs.find(it->buff_id) != ma_buffs.end()) {
-      ret += it->intensity * ma_buffs[it->buff_id].dodge_bonus(*this);
-    }
-  }
-  return ret;
+int player::mabuff_dodge_bonus() const
+{
+    int ret = 0;
+    accumulate_ma_buff_effects( effects, [&ret, this]( const ma_buff &b, const effect &d ) {
+        ret += d.get_intensity() * b.dodge_bonus( *this );
+    } );
+    return ret;
 }
-int player::mabuff_block_bonus() {
-  int ret = 0;
-  for (std::vector<disease>::iterator it = illness.begin();
-      it != illness.end(); ++it) {
-    if (it->is_mabuff() &&
-        ma_buffs.find(it->buff_id) != ma_buffs.end()) {
-      ret += it->intensity * ma_buffs[it->buff_id].block_bonus(*this);
-    }
-  }
-  return ret;
+int player::mabuff_block_bonus() const
+{
+    int ret = 0;
+    accumulate_ma_buff_effects( effects, [&ret, this]( const ma_buff &b, const effect &d ) {
+        ret += d.get_intensity() * b.block_bonus( *this );
+    } );
+    return ret;
 }
-int player::mabuff_speed_bonus() {
-  int ret = 0;
-  for (std::vector<disease>::iterator it = illness.begin();
-      it != illness.end(); ++it) {
-    if (it->is_mabuff() &&
-        ma_buffs.find(it->buff_id) != ma_buffs.end()) {
-      ret += it->intensity * ma_buffs[it->buff_id].speed_bonus(*this);
-    }
-  }
-  return ret;
+int player::mabuff_speed_bonus() const
+{
+    int ret = 0;
+    accumulate_ma_buff_effects( effects, [&ret, this]( const ma_buff &b, const effect &d ) {
+        ret += d.get_intensity() * b.speed_bonus( *this );
+    } );
+    return ret;
 }
-int player::mabuff_arm_bash_bonus() {
-  int ret = 0;
-  for (std::vector<disease>::iterator it = illness.begin();
-      it != illness.end(); ++it) {
-    if (it->is_mabuff() &&
-        ma_buffs.find(it->buff_id) != ma_buffs.end()) {
-      ret += it->intensity * ma_buffs[it->buff_id].arm_bash_bonus(*this);
-    }
-  }
-  return ret;
+int player::mabuff_armor_bonus( damage_type type ) const
+{
+    int ret = 0;
+    accumulate_ma_buff_effects( effects, [&ret, type, this]( const ma_buff &b, const effect &d ) {
+        ret += d.get_intensity() * b.armor_bonus( *this, type );
+    } );
+    return ret;
 }
-int player::mabuff_arm_cut_bonus() {
-  int ret = 0;
-  for (std::vector<disease>::iterator it = illness.begin();
-      it != illness.end(); ++it) {
-    if (it->is_mabuff() &&
-        ma_buffs.find(it->buff_id) != ma_buffs.end()) {
-      ret += it->intensity * ma_buffs[it->buff_id].arm_cut_bonus(*this);
-    }
-  }
-  return ret;
+float player::mabuff_damage_mult( damage_type type ) const
+{
+    float ret = 1.f;
+    accumulate_ma_buff_effects( effects, [&ret, type, this]( const ma_buff &b, const effect &d ) {
+        // This is correct, so that a 20% buff (1.2) plus a 20% buff (1.2)
+        // becomes 1.4 instead of 2.4 (which would be a 240% buff)
+        ret *= d.get_intensity() * ( b.damage_mult( *this, type ) - 1 ) + 1;
+    } );
+    return ret;
 }
-float player::mabuff_bash_mult() {
-  float ret = 1.f;
-  for (std::vector<disease>::iterator it = illness.begin();
-      it != illness.end(); ++it) {
-    if (it->is_mabuff() &&
-        ma_buffs.find(it->buff_id) != ma_buffs.end()) {
-      // This is correct, so that a 20% buff (1.2) plus a 20% buff (1.2)
-      // becomes 1.4 instead of 2.4 (which would be a 240% buff)
-      ret *= it->intensity * (ma_buffs[it->buff_id].bash_mult()-1)+1;
-    }
-  }
-  return ret;
-}
-int player::mabuff_bash_bonus() {
-  int ret = 0;
-  for (std::vector<disease>::iterator it = illness.begin();
-      it != illness.end(); ++it) {
-    if (it->is_mabuff() &&
-        ma_buffs.find(it->buff_id) != ma_buffs.end()) {
-      ret += it->intensity * ma_buffs[it->buff_id].bash_bonus(*this);
-    }
-  }
-  return ret;
-}
-float player::mabuff_cut_mult() {
-  float ret = 1.f;
-  for (std::vector<disease>::iterator it = illness.begin();
-      it != illness.end(); ++it) {
-    if (it->is_mabuff() &&
-        ma_buffs.find(it->buff_id) != ma_buffs.end()) {
-      // This is correct, so that a 20% buff (1.2) plus a 20% buff (1.2)
-      // becomes 1.4 instead of 2.4 (which would be a 240% buff)
-      ret *= it->intensity * (ma_buffs[it->buff_id].cut_mult()-1)+1;
-    }
-  }
-  return ret;
-}
-int player::mabuff_cut_bonus() {
-  int ret = 0;
-  for (std::vector<disease>::iterator it = illness.begin();
-      it != illness.end(); ++it) {
-    if (it->is_mabuff() &&
-        ma_buffs.find(it->buff_id) != ma_buffs.end()) {
-      ret += it->intensity * ma_buffs[it->buff_id].cut_bonus(*this);
-    }
-  }
-  return ret;
-}
-bool player::is_throw_immune() {
-  for (std::vector<disease>::iterator it = illness.begin();
-      it != illness.end(); ++it) {
-    if (it->is_mabuff() &&
-        ma_buffs.find(it->buff_id) != ma_buffs.end()) {
-      if (ma_buffs[it->buff_id].is_throw_immune()) return true;
-    }
-  }
-  return false;
-}
-bool player::is_quiet() {
-  for (std::vector<disease>::iterator it = illness.begin();
-      it != illness.end(); ++it) {
-    if (it->is_mabuff() &&
-        ma_buffs.find(it->buff_id) != ma_buffs.end()) {
-      if (ma_buffs[it->buff_id].is_quiet()) return true;
-    }
-  }
-  return false;
+int player::mabuff_damage_bonus( damage_type type ) const
+{
+    int ret = 0;
+    accumulate_ma_buff_effects( effects, [&ret, type, this]( const ma_buff &b, const effect &d ) {
+        ret += d.get_intensity() * b.damage_bonus( *this, type );
+    } );
+    return ret;
 }
 
-bool player::can_melee() {
-  for (std::vector<disease>::iterator it = illness.begin();
-      it != illness.end(); ++it) {
-    if (it->is_mabuff() &&
-        ma_buffs.find(it->buff_id) != ma_buffs.end()) {
-      if (ma_buffs[it->buff_id].can_melee()) return true;
-    }
-  }
-  return false;
+bool player::is_throw_immune() const
+{
+    return search_ma_buff_effect( effects, []( const ma_buff &b, const effect & ) {
+        return b.is_throw_immune();
+    } );
+}
+bool player::is_quiet() const
+{
+    return search_ma_buff_effect( effects, []( const ma_buff &b, const effect & ) {
+        return b.is_quiet();
+    } );
 }
 
-bool player::has_mabuff(mabuff_id id) {
-  for (std::vector<disease>::iterator it = illness.begin();
-      it != illness.end(); ++it) {
-    if (it->is_mabuff() && it->buff_id == id) {
-      return true;
+bool player::can_melee() const
+{
+    return search_ma_buff_effect( effects, []( const ma_buff &b, const effect & ) {
+        return b.can_melee();
+    } );
+}
+
+bool player::has_mabuff(mabuff_id id) const
+{
+    return search_ma_buff_effect( effects, [&id]( const ma_buff &b, const effect & ) {
+        return b.id == id;
+    } );
+}
+
+bool player::has_martialart(const matype_id &ma) const
+{
+    return std::find(ma_styles.begin(), ma_styles.end(), ma) != ma_styles.end();
+}
+
+void player::add_martialart(const matype_id &ma_id)
+{
+    if (has_martialart(ma_id)) {
+        return;
     }
-  }
-  return false;
+    ma_styles.push_back(ma_id);
+}
+
+float ma_technique::damage_bonus( const player &u, damage_type type ) const
+{
+    return bonuses.get_flat( u, AFFECTED_DAMAGE, type );
+}
+
+float ma_technique::damage_multiplier( const player &u, damage_type type ) const
+{
+    return bonuses.get_mult( u, AFFECTED_DAMAGE, type );
+}
+
+float ma_technique::move_cost_multiplier( const player &u ) const
+{
+    return bonuses.get_mult( u, AFFECTED_MOVE_COST );
+}
+
+float ma_technique::move_cost_penalty( const player &u ) const
+{
+    return bonuses.get_flat( u, AFFECTED_MOVE_COST );
+}
+
+float ma_technique::armor_penetration( const player &u, damage_type type ) const
+{
+    return bonuses.get_flat( u, AFFECTED_ARMOR_PENETRATION, type );
 }

@@ -73,6 +73,20 @@
             "multitile":false
         },
         {
+            "id":"explosion_medium",
+            "fg":-1,
+            "bg":-1,
+            "rotates":false,
+            "multitile":false
+        },
+        {
+            "id":"explosion_weak",
+            "fg":-1,
+            "bg":-1,
+            "rotates":false,
+            "multitile":false
+        },
+        {
             "id":"animation_bullet_normal",
             "fg":-1,
             "bg":-1,
@@ -228,7 +242,21 @@
             "multitile":false
         },
         {
+            "id": "t_pit_glass",
+            "fg":-1,
+            "bg":-1,
+            "rotates":false,
+            "multitile":false
+        },
+        {
             "id": "t_pit_spiked_covered",
+            "fg":-1,
+            "bg":-1,
+            "rotates":false,
+            "multitile":false
+        },
+        {
+            "id": "t_pit_glass_covered",
             "fg":-1,
             "bg":-1,
             "rotates":false,
@@ -9263,20 +9291,6 @@
             "multitile":false
         },
         {
-            "id": "smg_9mm",
-            "fg":-1,
-            "bg":-1,
-            "rotates":false,
-            "multitile":false
-        },
-        {
-            "id": "smg_45",
-            "fg":-1,
-            "bg":-1,
-            "rotates":false,
-            "multitile":false
-        },
-        {
             "id": "sig_mosquito",
             "fg":-1,
             "bg":-1,
@@ -9397,13 +9411,6 @@
         },
         {
             "id": "shotgun_sawn",
-            "fg":-1,
-            "bg":-1,
-            "rotates":false,
-            "multitile":false
-        },
-        {
-            "id": "saiga_sawn",
             "fg":-1,
             "bg":-1,
             "rotates":false,
@@ -9564,7 +9571,7 @@
             "multitile":false
         },
         {
-            "id": "m14a",
+            "id": "m1a",
             "fg":-1,
             "bg":-1,
             "rotates":false,
@@ -11280,13 +11287,6 @@
             "multitile":false
         },
 
-        {
-            "id": "bio_null",
-            "fg":-1,
-            "bg":-1,
-            "rotates":false,
-            "multitile":false
-        },
         {
             "id": "bio_power_storage",
             "fg":-1,

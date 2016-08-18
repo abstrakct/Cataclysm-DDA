@@ -1,41 +1,59 @@
-#ifndef _CONSTRUCTION_H_
-#define _CONSTRUCTION_H_
+#ifndef CONSTRUCTION_H
+#define CONSTRUCTION_H
 
-#include "json.h"
-#include "crafting.h" // for component
-// TODO: Hoist component into its own header so we don't have a cross-dependency on crafting.
+#include "cursesdef.h" // WINDOW
+#include "enums.h" // point
+#include "string_id.h"
 
-#include <vector>
 #include <string>
+#include <set>
+#include <functional>
 
-struct construct;
+class JsonObject;
+typedef int nc_color;
+class Skill;
+struct requirement_data;
 
-struct construction
-{
-    int id; // arbitrary internal identifier
+using skill_id = string_id<Skill>;
+using requirement_id = string_id<requirement_data>;
 
-    std::string description; // how the action is displayed to the player
-    std::string skill;
-    int difficulty; // carpentry skill level required
-    int time; // time taken to construct, in minutes
-    std::vector<std::vector<component> > tools; // tools required
-    std::vector<std::vector<component> > components; // components required
+struct construction {
+        std::string category; //Construction type category
+        std::string description; // how the action is displayed to the player
+        skill_id skill;
+        std::string pre_terrain; // beginning terrain for construction
+        std::string post_terrain;// final terrain after construction
 
-    std::string pre_terrain; // beginning terrain for construction
-    bool pre_is_furniture; // whether it's furniture or terrain
-    std::set<std::string> pre_flags; // flags beginning terrain must have
-    bool (construct::*pre_special)(point); // custom constructability check
+        std::set<std::string> pre_flags; // flags beginning terrain must have
 
-    void (construct::*post_special)(point); // custom after-effects
-    std::string post_terrain;// final terrain after construction
-    bool post_is_furniture; // whether it's furniture or terrain
+        requirement_id requirements;
+
+        size_t id; // Index in construction vector
+        int time;
+        int difficulty;
+
+        bool ( *pre_special )( const tripoint & ); // custom constructability check
+        void ( *post_special )( const tripoint & ); // custom after-effects
+
+        bool pre_is_furniture; // whether it's furniture or terrain
+        bool post_is_furniture; // whether it's furniture or terrain
+
+        int adjusted_time() const; // NPC assistance adjusted
+        int print_time( WINDOW *w, int ypos, int xpos, int width, nc_color col ) const;
+        std::vector<std::string> get_folded_time_string( int width ) const;
+        float time_scale() const; //result of construction scaling option
+    private:
+        std::string get_time_string() const;
 };
 
-extern std::vector<construction*> constructions;
+//! Set all constructions to take the specified time.
+void standardize_construction_times( int time );
 
-void load_construction(JsonObject &jsobj);
+void load_construction( JsonObject &jsobj );
 void reset_constructions();
 void construction_menu();
 void complete_construction();
+void check_constructions();
+void finalize_constructions();
 
-#endif // _CONSTRUCTION_H_
+#endif

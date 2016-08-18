@@ -1,31 +1,24 @@
-#ifndef _LIVE_VIEW_H_
-#define _LIVE_VIEW_H_
+#ifndef LIVE_VIEW_H
+#define LIVE_VIEW_H
 
-#include <vector>
-
-#include "cursesdef.h"
-
-class item;
+#include "cursesdef.h" // WINDOW
+#include "enums.h"     // tripoint
 
 class live_view
 {
-public:
-    live_view();
-    ~live_view();
+    public:
+        live_view() = default;
 
-    void init(int start_x, int start_y, int width, int height);
-    void show(const int x, const int y);
-    bool hide(bool refresh = true, bool force = false);
+        void init();
+        int draw( WINDOW *win, int max_height );
+        void refresh();
+        void show( const tripoint &mouse_position );
+        void hide();
 
-    bool compact_view;
+    private:
+        tripoint mouse_position;
 
-private:
-    WINDOW *w_live_view;
-    int width, height;
-    bool enabled;
-    int inuse;
-    int last_height;
-
-    void print_items(std::vector<item> &items, int &line) const;
+        bool enabled = false;
 };
+
 #endif
